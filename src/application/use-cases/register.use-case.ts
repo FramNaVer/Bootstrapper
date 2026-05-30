@@ -4,7 +4,7 @@ import { UserRepository } from '../../domain/repositories/user.repository';
 export class RegisterUseCase {
     constructor(private userRepo: UserRepository) {}
 
-    async execute(email: string, password: string, displayName?: string) {
+    async execute({ email, password, displayName }: { email: string; password: string; displayName?: string }) {
         const existingUser = await this.userRepo.findByEmail(email);
         if (existingUser) {
             throw new Error('User already exists');

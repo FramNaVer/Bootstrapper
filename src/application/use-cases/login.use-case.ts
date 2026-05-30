@@ -5,7 +5,7 @@ import { UserRepository } from '../../domain/repositories/user.repository';
 export class LoginUseCase {
     constructor(private userRepo: UserRepository) {}
 
-    async execute(email: string, password: string){
+    async execute({ email, password }: { email: string; password: string }) {
         const user = await this.userRepo.findByEmail(email);
         if(!user){
             throw new Error('Invalid email or password');
