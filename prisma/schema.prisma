@@ -1,0 +1,70 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+model User {
+  id    String @id @default(uuid())
+  email String @unique
+  displayName String?
+  avatarUrl String?
+  role Role @default(USER)
+  isEmailVerified Boolean @default(false)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  passwordHash UserPassword?
+  oauthProviders UserOAuthProvider[]
+}
+
+model UserPassword {
+  id String @id @default(uuid())
+  userId String @unique
+  passwordHash String
+  resetToken String?
+  resetTokenExpiry DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserOAuthProvider {
+  id             String    @id @default(uuid())
+  userId         String
+  provider       Provider
+  providerUserId String
+  accessToken    String
+  refreshToken   String?
+  tokenExpiry    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+// Enums 
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Provider {
+  GOOGLE
+  FACEBOOK
+  GITHUB
+}
