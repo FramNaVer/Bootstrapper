@@ -22,11 +22,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npx tsc --noEmit
-
       - name: Prisma generate
         run: npx prisma generate
+
+      - name: Type check
+        run: npx tsc --noEmit
 
       - name: Run tests
         run: npm test
