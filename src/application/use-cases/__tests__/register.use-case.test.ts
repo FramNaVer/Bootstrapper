@@ -20,6 +20,7 @@ const mockUserRepo: UserRepository = {
     findByEmail: vi.fn(),
     findPasswordHashByUserId: vi.fn(),
     create: vi.fn(),
+    linkOAuthProvider: vi.fn(),
 };
 
 describe("RegisterUseCase", () => {
