@@ -1,5 +1,5 @@
 import { PrismaClient } from "../../../generated/prisma";
-import {UserRepository,CreateUserData,} from "../../domain/repositories/user.repository";
+import { UserRepository, CreateUserData, LinkOAuthData } from "../../domain/repositories/user.repository";
 
 export class PrismaUserRepository implements UserRepository {
     constructor(private prisma: PrismaClient) { }
@@ -24,6 +24,7 @@ export class PrismaUserRepository implements UserRepository {
             data: {
                 email: data.email,
                 displayName: data.displayName,
+                avatarUrl: data.avatarUrl,
                 ...(data.passwordHash && {
                     passwordHash: {
                         create: { passwordHash: data.passwordHash },
@@ -34,10 +35,30 @@ export class PrismaUserRepository implements UserRepository {
                         create: {
                             provider: data.provider,
                             providerUserId: data.providerUserId,
-                            accessToken: "",
+                            accessToken: data.providerUserId ?? "",
                         },
                     },
                 }),
+            },
+        });
+    }
+
+    async linkOAuthProvider(userId: string, data: LinkOAuthData) {
+        await this.prisma.userOAuthProvider.upsert({
+            where: {
+                provider_providerUserId: {
+                    provider: data.provider,
+                    providerUserId: data.providerUserId,
+                },
+            },
+            create: {
+                userId,
+                provider: data.provider,
+                providerUserId: data.providerUserId,
+                accessToken: data.accessToken ?? "",
+            },
+            update: {
+                accessToken: data.accessToken ?? "",
             },
         });
     }
