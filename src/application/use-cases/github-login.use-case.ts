@@ -1,40 +1,45 @@
 import { UserRepository } from "../../domain/repositories/user.repository"
 import { TokenRepository } from "../../domain/repositories/token.repository"
+import { UnauthorizedError } from "../../domain/errors/app.error"
 import {
   generateAccessToken,
   generateRefreshToken,
   getRefreshTokenExpiry,
 } from "../utils/jwt.util"
 
-export class GoogleLoginUseCase {
+export class GithubLoginUseCase {
   constructor(
-    private userRepo: UserRepository,
+    private userRepository: UserRepository,
     private tokenRepo: TokenRepository
   ) {}
 
   async execute(profile: {
-    googleId: string
-    email: string
+    githubId: string
+    email: string | null
     displayName: string
     avatarUrl?: string
   }) {
-    // หา user จาก email ก่อน
-    let user = await this.userRepo.findByEmail(profile.email)
+    // GitHub account บางบัญชีไม่ได้ set public email → ใช้ login ไม่ได้
+    if (!profile.email) {
+      throw new UnauthorizedError(
+        "GitHub account must have a public email address"
+      )
+    }
+
+    let user = await this.userRepository.findByEmail(profile.email)
 
     if (!user) {
-      // ไม่มีในระบบ → สร้างใหม่พร้อม link Google provider
-      user = await this.userRepo.create({
+      user = await this.userRepository.create({
         email: profile.email,
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
-        provider: "GOOGLE",
-        providerUserId: profile.googleId,
+        provider: "GITHUB",
+        providerUserId: profile.githubId,
       })
     } else {
-      // มีแล้ว → เชื่อม Google เข้ากับ account เดิม (upsert)
-      await this.userRepo.linkOAuthProvider(user.id, {
-        provider: "GOOGLE",
-        providerUserId: profile.googleId,
+      await this.userRepository.linkOAuthProvider(user.id, {
+        provider: "GITHUB",
+        providerUserId: profile.githubId,
       })
     }
 
