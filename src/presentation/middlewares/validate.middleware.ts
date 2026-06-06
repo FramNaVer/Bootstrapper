@@ -8,18 +8,19 @@
 // =============================================================
 
 import { Request, Response, NextFunction } from "express"
-import { ZodSchema } from "zod"
+import { ZodTypeAny } from "zod"
 import { ValidationError } from "../../domain/errors/app.error"
 
-export function validate(schema: ZodSchema) {
+export function validate(schema: ZodTypeAny) {
   return (req: Request, _res: Response, next: NextFunction) => {
     const result = schema.safeParse(req.body)
 
     if (!result.success) {
-      // แปลง Zod errors ให้อ่านง่าย: [{ field: "email", message: "Invalid email" }]
-      const details = result.error.errors.map((err) => ({
-        field: err.path.join("."),
-        message: err.message,
+      // แปลง Zod issues ให้อ่านง่าย: [{ field: "email", message: "Invalid email" }]
+      // Zod v4 ใช้ .issues แทน .errors
+      const details = result.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
       }))
       return next(new ValidationError(details))
     }
