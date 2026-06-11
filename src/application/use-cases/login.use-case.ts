@@ -18,7 +18,7 @@ export class LoginUseCase {
         // ใช้ error message เดียวกันทั้ง email ผิดและ password ผิด
         // เพื่อป้องกัน user enumeration attack (ไม่ให้ผู้โจมตีรู้ว่า email มีอยู่หรือไม่)
         const user = await this.userRepo.findByEmail(email);
-        if (!user) {
+        if (!user || !user.isActive) {
             throw new UnauthorizedError("Invalid email or password");
         }
 
