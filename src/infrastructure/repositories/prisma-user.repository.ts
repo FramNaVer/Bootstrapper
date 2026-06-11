@@ -30,6 +30,7 @@ export class PrismaUserRepository implements UserRepository {
                 email: data.email,
                 displayName: data.displayName,
                 avatarUrl: data.avatarUrl,
+                isEmailVerified: data.emailVerified ?? false,
                 ...(data.passwordHash && {
                     passwordHash: {
                         create: { passwordHash: data.passwordHash },

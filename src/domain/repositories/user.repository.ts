@@ -13,6 +13,7 @@ export interface CreateUserData {
     displayName?: string;
     avatarUrl?: string;
     passwordHash?: string;
+    emailVerified?: boolean;
     provider?: Provider;
     providerUserId?: string;
 }

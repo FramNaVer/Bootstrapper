@@ -17,6 +17,7 @@ export function setupPassport(googleLoginUseCase: GoogleLoginUseCase) {
           const result = await googleLoginUseCase.execute({
             googleId: profile.id,
             email: profile.emails![0].value,
+            emailVerified: profile._json.email_verified === true,
             displayName: profile.displayName,
             avatarUrl: profile.photos?.[0].value,
           })

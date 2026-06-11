@@ -33,10 +33,14 @@ export class GithubLoginUseCase {
         email: profile.email,
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
+        emailVerified: true,
         provider: "GITHUB",
         providerUserId: profile.githubId,
       })
     } else {
+      if(!user.isActive){
+        throw new UnauthorizedError("Invalid credentials")
+      }
       await this.userRepository.linkOAuthProvider(user.id, {
         provider: "GITHUB",
         providerUserId: profile.githubId,
