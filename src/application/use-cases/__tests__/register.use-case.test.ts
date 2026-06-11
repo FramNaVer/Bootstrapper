@@ -125,6 +125,7 @@ describe("GoogleLoginUseCase", () => {
             googleId: "google-123",
             email: "google@example.com",
             displayName: "Google User",
+            emailVerified: true,
         })
 
         // หลังจาก refactor ใช้ accessToken แทน token

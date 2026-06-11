@@ -5,6 +5,7 @@ import {
   generateRefreshToken,
   getRefreshTokenExpiry,
 } from "../utils/jwt.util"
+import { UnauthorizedError } from "../../domain/errors/app.error"
 
 export class GoogleLoginUseCase {
   constructor(
@@ -16,8 +17,15 @@ export class GoogleLoginUseCase {
     googleId: string
     email: string
     displayName: string
+    emailVerified: boolean
     avatarUrl?: string
   }) {
+    // กัน account takeover: เชื่อ email ก็ต่อเมื่อ Google ยืนยันว่า verified แล้วเท่านั้น
+    // ถ้าไม่เช็คตรงนี้ ผู้โจมตีตั้ง email ปลอมให้ตรงกับเหยื่อ → ถูก link เข้าบัญชี local เดิมได้
+    if (!profile.emailVerified) {
+      throw new UnauthorizedError("Google email is not verified")
+    }
+
     // หา user จาก email ก่อน
     let user = await this.userRepo.findByEmail(profile.email)
 
@@ -27,10 +35,14 @@ export class GoogleLoginUseCase {
         email: profile.email,
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
+        emailVerified: profile.emailVerified,
         provider: "GOOGLE",
         providerUserId: profile.googleId,
       })
     } else {
+      if (!user.isActive) {
+        throw new UnauthorizedError("Invalid credentials")
+      }
       // มีแล้ว → เชื่อม Google เข้ากับ account เดิม (upsert)
       await this.userRepo.linkOAuthProvider(user.id, {
         provider: "GOOGLE",
