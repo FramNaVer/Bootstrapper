@@ -1,10 +1,12 @@
 // =============================================================
-// Auth Routes (v1)
+// Auth Routes (v1)  — Composition Root
 // =============================================================
-// ไฟล์นี้ทำ 3 อย่าง:
-//   1. ตั้งค่า Database connection
-//   2. Dependency Injection — สร้าง use cases และส่ง dependencies เข้าไป
-//   3. ลงทะเบียน routes พร้อม middlewares
+// ไฟล์นี้ทำ 2 อย่าง:
+//   1. Dependency Injection — สร้าง use cases และส่ง dependencies เข้าไป
+//   2. ลงทะเบียน routes พร้อม middlewares
+//
+// Composition Root คือที่เดียวที่รู้จัก concrete classes (PrismaUserRepository ฯลฯ)
+// Use cases ข้างใน depend on interfaces เท่านั้น → DIP ถูกต้อง
 //
 // ทำไมถึงอยู่ที่ routes/v1/?
 // เมื่อเพิ่ม features ใหม่ที่ breaking change → สร้าง routes/v2/ ได้เลย
@@ -12,9 +14,7 @@
 // =============================================================
 
 import { Router } from "express"
-import { Pool } from "pg"
-import { PrismaPg } from "@prisma/adapter-pg"
-import { PrismaClient } from "../../../../generated/prisma"
+import { prisma } from "../../../infrastructure/database/prisma.client"
 import { PrismaUserRepository } from "../../../infrastructure/repositories/prisma-user.repository"
 import { PrismaTokenRepository } from "../../../infrastructure/repositories/prisma-token.repository"
 import { RegisterUseCase } from "../../../application/use-cases/register.use-case"
@@ -29,11 +29,6 @@ import { validate } from "../../middlewares/validate.middleware"
 import { authRateLimit } from "../../middlewares/rate-limit.middleware"
 import { loginSchema, registerSchema, refreshTokenSchema } from "../../validators/auth.validator"
 import passport from "passport"
-
-// --- Database Setup ---
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
-const adapter = new PrismaPg(pool)
-const prisma = new PrismaClient({ adapter })
 
 // --- Dependency Injection ---
 // ลำดับการ inject: repository → use case → controller
