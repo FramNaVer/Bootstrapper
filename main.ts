@@ -14,7 +14,9 @@
 //   9. errorHandler   ← ต้องอยู่ท้ายสุดเสมอ
 // =============================================================
 
-import "dotenv/config"
+// env ต้อง import ก่อนสุด — validate environment variables ตอน boot
+// ถ้า config ไม่ครบ แอปจะตายทันทีที่นี่ ก่อนที่ส่วนอื่นจะทำงาน
+import { env } from "./src/infrastructure/config/env"
 import express, { Request, Response } from "express"
 import helmet from "helmet"
 import cors from "cors"
@@ -27,7 +29,7 @@ import authRouter from "./src/presentation/routes/v1/auth.route"
 import { logger } from "./src/infrastructure/logging/logger"
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = env.PORT
 
 // 1. Correlation ID — ต้องมาก่อนทุก middleware เพื่อให้ log ทุกตัวมี ID
 app.use(correlationId)
@@ -41,7 +43,7 @@ app.use(helmet())
 // 4. CORS
 app.use(
   cors({
-    origin: process.env.ALLOWED_ORIGIN || "http://localhost:3000",
+    origin: env.ALLOWED_ORIGIN,
     credentials: true,
   })
 )

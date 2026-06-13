@@ -107,8 +107,6 @@ describe("RegisterUseCase", () => {
 describe("GoogleLoginUseCase", () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        process.env.JWT_SECRET = "test-secret"
-        process.env.JWT_REFRESH_SECRET = "test-refresh-secret"
     })
 
     // ทดสอบการสร้าง account ใหม่เมื่อผู้ใช้เข้าสู่ระบบด้วย Google เป็นครั้งแรก
@@ -143,8 +141,6 @@ describe("GoogleLoginUseCase", () => {
 describe("GithubLoginUseCase", () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        process.env.JWT_SECRET = "test-secret"
-        process.env.JWT_REFRESH_SECRET = "test-refresh-secret"
     })
 
     // ทดสอบการสร้าง account ใหม่เมื่อผู้ใช้เข้าสู่ระบบด้วย GitHub เป็นครั้งแรก
@@ -160,6 +156,7 @@ describe("GithubLoginUseCase", () => {
         const result = await githubLoginUseCase.execute({
             githubId: "github-123",
             email: "github@example.com",
+            emailVerified: true,
             displayName: "GitHub User",
         })
 
@@ -177,8 +174,27 @@ describe("GithubLoginUseCase", () => {
             githubLoginUseCase.execute({
                 githubId: "github-123",
                 email: null,
+                emailVerified: false,
                 displayName: "GitHub User",
             })
         ).rejects.toThrow("GitHub account must have a public email address")
+    })
+
+    // ทดสอบว่า email ที่ GitHub ยังไม่ verified ต้องถูกปฏิเสธ (กัน account takeover)
+    it("should throw UnauthorizedError if GitHub email is not verified", async () => {
+        const githubLoginUseCase = new GithubLoginUseCase(mockUserRepo, mockTokenRepo)
+
+        await expect(
+            githubLoginUseCase.execute({
+                githubId: "github-123",
+                email: "github@example.com",
+                emailVerified: false,
+                displayName: "GitHub User",
+            })
+        ).rejects.toThrow("GitHub email is not verified")
+
+        // ต้องไม่มีการแตะ DB เลยถ้า email ไม่ verified
+        expect(mockUserRepo.findByEmail).not.toHaveBeenCalled()
+        expect(mockUserRepo.create).not.toHaveBeenCalled()
     })
 })

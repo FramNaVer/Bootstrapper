@@ -16,6 +16,7 @@ export class GithubLoginUseCase {
   async execute(profile: {
     githubId: string
     email: string | null
+    emailVerified: boolean
     displayName: string
     avatarUrl?: string
   }) {
@@ -26,6 +27,13 @@ export class GithubLoginUseCase {
       )
     }
 
+    // กัน account takeover เหมือนฝั่ง Google: เชื่อ email ต่อเมื่อ GitHub
+    // ยืนยันแล้วเท่านั้น ป้องกันผู้โจมตีตั้ง email ปลอมให้ตรงกับเหยื่อ
+    // แล้วถูก link เข้าบัญชี local เดิม
+    if (!profile.emailVerified) {
+      throw new UnauthorizedError("GitHub email is not verified")
+    }
+
     let user = await this.userRepository.findByEmail(profile.email)
 
     if (!user) {
@@ -33,7 +41,7 @@ export class GithubLoginUseCase {
         email: profile.email,
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
-        emailVerified: true,
+        emailVerified: profile.emailVerified,
         provider: "GITHUB",
         providerUserId: profile.githubId,
       })

@@ -10,29 +10,30 @@
 // =============================================================
 
 import jwt from "jsonwebtoken"
+import { env } from "../../infrastructure/config/env"
 
 const ACCESS_TOKEN_EXPIRES = "15m"
 const REFRESH_TOKEN_EXPIRES = "7d"
 const REFRESH_TOKEN_DAYS = 7
 
 export function generateAccessToken(userId: string): string {
-  return jwt.sign({ userId }, process.env.JWT_SECRET!, {
+  return jwt.sign({ userId }, env.JWT_SECRET, {
     expiresIn: ACCESS_TOKEN_EXPIRES,
   })
 }
 
 export function generateRefreshToken(userId: string): string {
-  return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, {
+  return jwt.sign({ userId }, env.JWT_REFRESH_SECRET, {
     expiresIn: REFRESH_TOKEN_EXPIRES,
   })
 }
 
 export function verifyAccessToken(token: string): { userId: string } {
-  return jwt.verify(token, process.env.JWT_SECRET!) as { userId: string }
+  return jwt.verify(token, env.JWT_SECRET) as { userId: string }
 }
 
 export function verifyRefreshToken(token: string): { userId: string } {
-  return jwt.verify(token, process.env.JWT_REFRESH_SECRET!) as { userId: string }
+  return jwt.verify(token, env.JWT_REFRESH_SECRET) as { userId: string }
 }
 
 // คำนวณวันหมดอายุของ refresh token เพื่อบันทึกลง DB
