@@ -31,6 +31,13 @@ import { logger } from "./src/infrastructure/logging/logger"
 const app = express()
 const PORT = env.PORT
 
+// Trust proxy — เปิดเฉพาะ production ที่รันหลัง reverse proxy (Railway/Render/ฯลฯ)
+// ตั้งเป็น 1 = เชื่อ proxy ชั้นแรกชั้นเดียว เพื่อให้ rate limit อ่าน client IP จริงได้
+// ไม่ตั้งเป็น true (เชื่อทุกชั้น) เพราะ client อาจปลอม X-Forwarded-For เพื่อ bypass rate limit
+if (env.NODE_ENV === "production") {
+  app.set("trust proxy", 1)
+}
+
 // 1. Correlation ID — ต้องมาก่อนทุก middleware เพื่อให้ log ทุกตัวมี ID
 app.use(correlationId)
 
