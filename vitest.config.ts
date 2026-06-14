@@ -1,6 +1,9 @@
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({
+  // resolve path alias (@shared, @modules, @generated) จาก tsconfig.json
+  // ใช้ native support ของ Vite (ไม่ต้องพึ่ง plugin)
+  resolve: { tsconfigPaths: true },
   test: {
     // รัน test จาก src/ เท่านั้น ไม่รวม dist/ ที่ compile แล้ว
     include: ["src/**/*.test.ts"],
