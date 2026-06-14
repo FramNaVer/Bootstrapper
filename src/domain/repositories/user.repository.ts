@@ -6,6 +6,8 @@ export interface UserRepository {
     findPasswordHashByUserId(userId: string): Promise<string | null>;
     create(data: CreateUserData): Promise<UserEntity>;
     linkOAuthProvider(userId: string, data: LinkOAuthData): Promise<void>;
+    markEmailVerified(userId: string): Promise<void>;
+    updatePassword(userId: string, passwordHash: string): Promise<void>;
 }
 
 export interface CreateUserData {

@@ -31,6 +31,16 @@ const envSchema = z.object({
   // CORS
   ALLOWED_ORIGIN: z.string().default("http://localhost:3000"),
 
+  // Base URL ของแอป — ใช้ประกอบลิงก์ใน email (verify / reset password)
+  APP_URL: z.string().url().default("http://localhost:3000"),
+
+  // Email (SMTP) — ถ้าไม่ตั้งค่า dev จะส่งแบบ log preview ออก console แทน
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().default("Bootstrapper <no-reply@bootstrapper.local>"),
+
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),

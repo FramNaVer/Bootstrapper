@@ -27,6 +27,8 @@ const mockUserRepo: UserRepository = {
     findPasswordHashByUserId: vi.fn(),
     create: vi.fn(),
     linkOAuthProvider: vi.fn(),
+    markEmailVerified: vi.fn(),
+    updatePassword: vi.fn(),
 }
 
 // Mock TokenRepository — แทน Prisma สำหรับ use cases ที่ต้องการ token repo
