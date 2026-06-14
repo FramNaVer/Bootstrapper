@@ -10,6 +10,7 @@
 // =============================================================
 
 import jwt from "jsonwebtoken"
+import { randomUUID } from "crypto"
 import { env } from "../../infrastructure/config/env"
 
 const ACCESS_TOKEN_EXPIRES = "15m"
@@ -23,8 +24,11 @@ export function generateAccessToken(userId: string): string {
 }
 
 export function generateRefreshToken(userId: string): string {
+  // ใส่ jti (token id สุ่ม) เพื่อให้ refresh token ไม่ซ้ำกัน
+  // กันกรณี rotation ออก token ใหม่ในวินาทีเดียวกัน → string ซ้ำ → ชน unique constraint
   return jwt.sign({ userId }, env.JWT_REFRESH_SECRET, {
     expiresIn: REFRESH_TOKEN_EXPIRES,
+    jwtid: randomUUID(),
   })
 }
 
