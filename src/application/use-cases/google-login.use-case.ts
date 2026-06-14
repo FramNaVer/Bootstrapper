@@ -15,11 +15,16 @@ export class GoogleLoginUseCase {
 
   async execute(profile: {
     googleId: string
-    email: string
+    email: string | null
     displayName: string
     emailVerified: boolean
     avatarUrl?: string
   }) {
+    // Google ปกติส่ง email มาเสมอ แต่กันไว้: ถ้าไม่มี email link บัญชีไม่ได้
+    if (!profile.email) {
+      throw new UnauthorizedError("Google account must have an email address")
+    }
+
     // กัน account takeover: เชื่อ email ก็ต่อเมื่อ Google ยืนยันว่า verified แล้วเท่านั้น
     // ถ้าไม่เช็คตรงนี้ ผู้โจมตีตั้ง email ปลอมให้ตรงกับเหยื่อ → ถูก link เข้าบัญชี local เดิมได้
     if (!profile.emailVerified) {

@@ -41,7 +41,9 @@ export class PrismaUserRepository implements UserRepository {
                         create: {
                             provider: data.provider,
                             providerUserId: data.providerUserId,
-                            accessToken: data.providerUserId ?? "",
+                            // เราไม่ได้ใช้ OAuth access token จึงเก็บค่าว่าง
+                            // (เดิมเก็บ providerUserId ผิดช่อง)
+                            accessToken: "",
                         },
                     },
                 }),

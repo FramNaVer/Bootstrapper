@@ -15,10 +15,11 @@
 import { Pool } from "pg"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { PrismaClient } from "../../../generated/prisma"
+import { env } from "../config/env"
 
 // Pool คือ pg connection pool — PrismaPg adapter ต้องการสิ่งนี้
 // ไม่ใช่ connection ซ้ำซ้อน แต่คือ driver ที่ Prisma ใช้เชื่อมต่อ DB
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const pool = new Pool({ connectionString: env.DATABASE_URL })
 const adapter = new PrismaPg(pool)
 
 export const prisma = new PrismaClient({ adapter })
