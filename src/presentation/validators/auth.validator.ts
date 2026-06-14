@@ -31,8 +31,27 @@ export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, "Refresh token is required"),
 })
 
+export const emailSchema = z.object({
+  email: z.string().email("Invalid email address"),
+})
+
+export const verifyEmailSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+})
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, "Token is required"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(100, "Password is too long"),
+})
+
 // z.infer<T> สร้าง TypeScript type จาก Zod schema โดยอัตโนมัติ
 // ไม่ต้องเขียน type ซ้ำ 2 ที่
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>
+export type EmailInput = z.infer<typeof emailSchema>
+export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>

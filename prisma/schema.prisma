@@ -27,6 +27,7 @@ model User {
   passwordHash UserPassword?
   oauthProviders UserOAuthProvider[]
   refreshTokens RefreshToken[]
+  verificationTokens VerificationToken[]
 }
 
 model RefreshToken {
@@ -46,12 +47,26 @@ model UserPassword {
   id String @id @default(uuid())
   userId String @unique
   passwordHash String
-  resetToken String?
-  resetTokenExpiry DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Token แบบใช้ครั้งเดียว สำหรับ email verification และ password reset
+// เก็บเฉพาะ hash ของ token (ไม่เก็บตัวจริง) — ถ้า DB หลุด token ก็ใช้ไม่ได้
+model VerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  type      TokenType
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model UserOAuthProvider {
@@ -81,4 +96,9 @@ enum Provider {
   GOOGLE
   FACEBOOK
   GITHUB
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
 }

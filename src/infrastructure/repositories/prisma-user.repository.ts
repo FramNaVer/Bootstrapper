@@ -51,6 +51,24 @@ export class PrismaUserRepository implements UserRepository {
         });
     }
 
+    // ทำเครื่องหมายว่า user ยืนยัน email แล้ว
+    async markEmailVerified(userId: string): Promise<void> {
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { isEmailVerified: true },
+        });
+    }
+
+    // อัปเดตรหัสผ่าน (ใช้ตอน reset password)
+    // ใช้ upsert เผื่อ user ที่สมัครผ่าน OAuth ยังไม่มี UserPassword row
+    async updatePassword(userId: string, passwordHash: string): Promise<void> {
+        await this.prisma.userPassword.upsert({
+            where: { userId },
+            create: { userId, passwordHash },
+            update: { passwordHash },
+        });
+    }
+
     // Method นี้ใช้สำหรับเชื่อมบัญชี OAuth กับ user ที่มีอยู่แล้ว
     async linkOAuthProvider(userId: string, data: LinkOAuthData) {
         await this.prisma.userOAuthProvider.upsert({
