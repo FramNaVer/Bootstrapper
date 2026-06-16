@@ -10,3 +10,12 @@ export interface MembershipEntity {
   createdAt: Date
   updatedAt: Date
 }
+
+// membership พร้อมข้อมูล user (ใช้ตอน list รายชื่อสมาชิกของ org)
+export interface MembershipMember {
+  userId: string
+  email: string
+  displayName: string | null
+  role: MembershipRole
+  joinedAt: Date
+}

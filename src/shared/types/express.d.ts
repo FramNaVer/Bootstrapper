@@ -6,6 +6,8 @@ declare global {
   namespace Express {
     interface Request {
       userId?: string
+      // role ของผู้เรียกใน org ที่กำลังเข้าถึง (ใส่โดย RBAC middleware)
+      membershipRole?: "OWNER" | "ADMIN" | "MEMBER" | "VIEWER"
     }
   }
 }
