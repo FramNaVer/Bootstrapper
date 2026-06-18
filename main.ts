@@ -27,6 +27,7 @@ import { generalRateLimit } from "@shared/middlewares/rate-limit.middleware"
 import { errorHandler } from "@shared/middlewares/error.middleware"
 import authRouter from "@modules/auth/presentation/routes/v1/auth.route"
 import organizationRouter from "@modules/organization/presentation/routes/v1/organization.route"
+import invitationRouter from "@modules/organization/presentation/routes/v1/invitation.route"
 import { logger } from "@shared/logging/logger"
 
 const app = express()
@@ -72,6 +73,7 @@ app.get("/", (_req: Request, res: Response) => {
 
 app.use("/api/v1/auth", authRouter)
 app.use("/api/v1/organizations", organizationRouter)
+app.use("/api/v1/invitations", invitationRouter)
 
 // 9. Global error handler — ต้องลงทะเบียนเป็นตัวสุดท้ายเสมอ
 app.use(errorHandler)

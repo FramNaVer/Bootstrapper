@@ -9,6 +9,14 @@ import {
 export class PrismaMembershipRepository implements MembershipRepository {
   constructor(private prisma: PrismaClient) {}
 
+  async create(data: {
+    userId: string
+    organizationId: string
+    role: MembershipRole
+  }): Promise<void> {
+    await this.prisma.membership.create({ data })
+  }
+
   async findByUserAndOrg(
     userId: string,
     organizationId: string

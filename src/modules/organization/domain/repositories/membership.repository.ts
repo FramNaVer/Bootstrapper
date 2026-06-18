@@ -5,6 +5,13 @@ import {
 } from "../entities/membership.entity"
 
 export interface MembershipRepository {
+  // เพิ่มสมาชิกใหม่ (ใช้ตอนรับคำเชิญ)
+  create(data: {
+    userId: string
+    organizationId: string
+    role: MembershipRole
+  }): Promise<void>
+
   // หา membership ของ user คนหนึ่งใน org หนึ่ง (ใช้ใน RBAC guard)
   findByUserAndOrg(
     userId: string,
