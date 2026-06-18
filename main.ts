@@ -16,17 +16,19 @@
 
 // env ต้อง import ก่อนสุด — validate environment variables ตอน boot
 // ถ้า config ไม่ครบ แอปจะตายทันทีที่นี่ ก่อนที่ส่วนอื่นจะทำงาน
-import { env } from "./src/infrastructure/config/env"
+import { env } from "@shared/config/env"
 import express, { Request, Response } from "express"
 import helmet from "helmet"
 import cors from "cors"
 import passport from "passport"
-import { correlationId } from "./src/presentation/middlewares/correlation-id.middleware"
-import { httpLogger } from "./src/presentation/middlewares/http-logger.middleware"
-import { generalRateLimit } from "./src/presentation/middlewares/rate-limit.middleware"
-import { errorHandler } from "./src/presentation/middlewares/error.middleware"
-import authRouter from "./src/presentation/routes/v1/auth.route"
-import { logger } from "./src/infrastructure/logging/logger"
+import { correlationId } from "@shared/middlewares/correlation-id.middleware"
+import { httpLogger } from "@shared/middlewares/http-logger.middleware"
+import { generalRateLimit } from "@shared/middlewares/rate-limit.middleware"
+import { errorHandler } from "@shared/middlewares/error.middleware"
+import authRouter from "@modules/auth/presentation/routes/v1/auth.route"
+import organizationRouter from "@modules/organization/presentation/routes/v1/organization.route"
+import invitationRouter from "@modules/organization/presentation/routes/v1/invitation.route"
+import { logger } from "@shared/logging/logger"
 
 const app = express()
 const PORT = env.PORT
@@ -70,6 +72,8 @@ app.get("/", (_req: Request, res: Response) => {
 })
 
 app.use("/api/v1/auth", authRouter)
+app.use("/api/v1/organizations", organizationRouter)
+app.use("/api/v1/invitations", invitationRouter)
 
 // 9. Global error handler — ต้องลงทะเบียนเป็นตัวสุดท้ายเสมอ
 app.use(errorHandler)
