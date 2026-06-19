@@ -12,6 +12,8 @@ import { PrismaMembershipRepository } from "@modules/organization/infrastructure
 import { requireRole } from "@modules/organization/presentation/middlewares/rbac.middleware"
 import { PrismaBoardRepository } from "../../../infrastructure/repositories/prisma-board.repository"
 import { PrismaListRepository } from "../../../infrastructure/repositories/prisma-list.repository"
+import { PrismaCardRepository } from "../../../infrastructure/repositories/prisma-card.repository"
+import { PrismaActivityLogRepository } from "../../../infrastructure/repositories/prisma-activity-log.repository"
 import { CreateBoardUseCase } from "../../../application/use-cases/create-board.use-case"
 import { ListBoardsUseCase } from "../../../application/use-cases/list-boards.use-case"
 import { GetBoardUseCase } from "../../../application/use-cases/get-board.use-case"
@@ -21,14 +23,30 @@ import { CreateListUseCase } from "../../../application/use-cases/create-list.us
 import { ListListsUseCase } from "../../../application/use-cases/list-lists.use-case"
 import { UpdateListUseCase } from "../../../application/use-cases/update-list.use-case"
 import { DeleteListUseCase } from "../../../application/use-cases/delete-list.use-case"
+import { CreateCardUseCase } from "../../../application/use-cases/create-card.use-case"
+import { ListCardsUseCase } from "../../../application/use-cases/list-cards.use-case"
+import { GetCardUseCase } from "../../../application/use-cases/get-card.use-case"
+import { UpdateCardUseCase } from "../../../application/use-cases/update-card.use-case"
+import { MoveCardUseCase } from "../../../application/use-cases/move-card.use-case"
+import { DeleteCardUseCase } from "../../../application/use-cases/delete-card.use-case"
+import { ListActivitiesUseCase } from "../../../application/use-cases/list-activities.use-case"
 import { BoardController } from "../../controllers/board.controller"
 import { ListController } from "../../controllers/list.controller"
+import { CardController } from "../../controllers/card.controller"
+import { ActivityController } from "../../controllers/activity.controller"
 import { createBoardSchema, updateBoardSchema } from "../../validators/board.validator"
 import { createListSchema, updateListSchema } from "../../validators/list.validator"
+import {
+  createCardSchema,
+  updateCardSchema,
+  moveCardSchema,
+} from "../../validators/card.validator"
 
 // --- Dependency Injection ---
 const boardRepo = new PrismaBoardRepository(prisma)
 const listRepo = new PrismaListRepository(prisma)
+const cardRepo = new PrismaCardRepository(prisma)
+const activityRepo = new PrismaActivityLogRepository(prisma)
 const membershipRepo = new PrismaMembershipRepository(prisma)
 
 const boardController = new BoardController(
@@ -44,6 +62,19 @@ const listController = new ListController(
   new ListListsUseCase(boardRepo, listRepo),
   new UpdateListUseCase(listRepo),
   new DeleteListUseCase(listRepo)
+)
+
+const cardController = new CardController(
+  new CreateCardUseCase(cardRepo, listRepo, activityRepo),
+  new ListCardsUseCase(boardRepo, cardRepo),
+  new GetCardUseCase(cardRepo),
+  new UpdateCardUseCase(cardRepo, activityRepo),
+  new MoveCardUseCase(cardRepo, listRepo, activityRepo),
+  new DeleteCardUseCase(cardRepo, activityRepo)
+)
+
+const activityController = new ActivityController(
+  new ListActivitiesUseCase(boardRepo, activityRepo)
 )
 
 // mergeParams: true → ดึง :orgId จาก mount path มาใช้ใน requireRole/controller ได้
@@ -98,6 +129,46 @@ router.delete(
   "/:boardId/lists/:listId",
   requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
   listController.deleteList
+)
+
+// --- Cards (sub-resource ของ board) ---
+// listId ของการ์ดอยู่ใน body (validate ด้วย createCardSchema)
+router.post(
+  "/:boardId/cards",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  validate(createCardSchema),
+  cardController.createCard
+)
+router.get("/:boardId/cards", requireRole(membershipRepo), cardController.listCards)
+router.get(
+  "/:boardId/cards/:cardId",
+  requireRole(membershipRepo),
+  cardController.getCard
+)
+router.patch(
+  "/:boardId/cards/:cardId",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  validate(updateCardSchema),
+  cardController.updateCard
+)
+// ลากย้ายการ์ด — VIEWER ทำไม่ได้ (ดูได้อย่างเดียว)
+router.patch(
+  "/:boardId/cards/:cardId/move",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  validate(moveCardSchema),
+  cardController.moveCard
+)
+router.delete(
+  "/:boardId/cards/:cardId",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  cardController.deleteCard
+)
+
+// --- Activity feed (อ่านอย่างเดียว สมาชิกทุก role) ---
+router.get(
+  "/:boardId/activities",
+  requireRole(membershipRepo),
+  activityController.listActivities
 )
 
 export default router
