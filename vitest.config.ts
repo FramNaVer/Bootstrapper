@@ -7,6 +7,9 @@ export default defineConfig({
   test: {
     // รัน test จาก src/ เท่านั้น ไม่รวม dist/ ที่ compile แล้ว
     include: ["src/**/*.test.ts"],
+    // integration test (*.int.test.ts) ต่อ DB จริง → แยกไปรันด้วย vitest.integration.config.ts
+    // ไม่รวมที่นี่ เพื่อให้ `npm test` เป็น unit ล้วน รันได้โดยไม่ต้องมี DB
+    exclude: ["**/node_modules/**", "**/dist/**", "src/**/*.int.test.ts"],
 
     // env สำหรับตอนรันเทสต์ — use case import jwt.util → env.ts ซึ่ง validate
     // environment ตอน boot ถ้าไม่ใส่ตรงนี้ env.ts จะ process.exit(1) แล้วฆ่า test runner
