@@ -14,6 +14,9 @@ import { PrismaBoardRepository } from "../../../infrastructure/repositories/pris
 import { PrismaListRepository } from "../../../infrastructure/repositories/prisma-list.repository"
 import { PrismaCardRepository } from "../../../infrastructure/repositories/prisma-card.repository"
 import { PrismaActivityLogRepository } from "../../../infrastructure/repositories/prisma-activity-log.repository"
+import { PrismaCommentRepository } from "../../../infrastructure/repositories/prisma-comment.repository"
+import { PrismaLabelRepository } from "../../../infrastructure/repositories/prisma-label.repository"
+import { PrismaCardAssigneeRepository } from "../../../infrastructure/repositories/prisma-card-assignee.repository"
 import { CreateBoardUseCase } from "../../../application/use-cases/create-board.use-case"
 import { ListBoardsUseCase } from "../../../application/use-cases/list-boards.use-case"
 import { GetBoardUseCase } from "../../../application/use-cases/get-board.use-case"
@@ -30,10 +33,24 @@ import { UpdateCardUseCase } from "../../../application/use-cases/update-card.us
 import { MoveCardUseCase } from "../../../application/use-cases/move-card.use-case"
 import { DeleteCardUseCase } from "../../../application/use-cases/delete-card.use-case"
 import { ListActivitiesUseCase } from "../../../application/use-cases/list-activities.use-case"
+import { AddCommentUseCase } from "../../../application/use-cases/add-comment.use-case"
+import { ListCommentsUseCase } from "../../../application/use-cases/list-comments.use-case"
+import { DeleteCommentUseCase } from "../../../application/use-cases/delete-comment.use-case"
+import { AssignMemberUseCase } from "../../../application/use-cases/assign-member.use-case"
+import { UnassignMemberUseCase } from "../../../application/use-cases/unassign-member.use-case"
+import { ListAssigneesUseCase } from "../../../application/use-cases/list-assignees.use-case"
+import { CreateLabelUseCase } from "../../../application/use-cases/create-label.use-case"
+import { ListLabelsUseCase } from "../../../application/use-cases/list-labels.use-case"
+import { DeleteLabelUseCase } from "../../../application/use-cases/delete-label.use-case"
+import { AttachLabelUseCase } from "../../../application/use-cases/attach-label.use-case"
+import { DetachLabelUseCase } from "../../../application/use-cases/detach-label.use-case"
 import { BoardController } from "../../controllers/board.controller"
 import { ListController } from "../../controllers/list.controller"
 import { CardController } from "../../controllers/card.controller"
 import { ActivityController } from "../../controllers/activity.controller"
+import { CommentController } from "../../controllers/comment.controller"
+import { AssigneeController } from "../../controllers/assignee.controller"
+import { LabelController } from "../../controllers/label.controller"
 import { createBoardSchema, updateBoardSchema } from "../../validators/board.validator"
 import { createListSchema, updateListSchema } from "../../validators/list.validator"
 import {
@@ -41,12 +58,21 @@ import {
   updateCardSchema,
   moveCardSchema,
 } from "../../validators/card.validator"
+import { createCommentSchema } from "../../validators/comment.validator"
+import { assignMemberSchema } from "../../validators/assignee.validator"
+import {
+  createLabelSchema,
+  attachLabelSchema,
+} from "../../validators/label.validator"
 
 // --- Dependency Injection ---
 const boardRepo = new PrismaBoardRepository(prisma)
 const listRepo = new PrismaListRepository(prisma)
 const cardRepo = new PrismaCardRepository(prisma)
 const activityRepo = new PrismaActivityLogRepository(prisma)
+const commentRepo = new PrismaCommentRepository(prisma)
+const labelRepo = new PrismaLabelRepository(prisma)
+const assigneeRepo = new PrismaCardAssigneeRepository(prisma)
 const membershipRepo = new PrismaMembershipRepository(prisma)
 
 const boardController = new BoardController(
@@ -75,6 +101,26 @@ const cardController = new CardController(
 
 const activityController = new ActivityController(
   new ListActivitiesUseCase(boardRepo, activityRepo)
+)
+
+const commentController = new CommentController(
+  new AddCommentUseCase(cardRepo, commentRepo, activityRepo),
+  new ListCommentsUseCase(cardRepo, commentRepo),
+  new DeleteCommentUseCase(commentRepo)
+)
+
+const assigneeController = new AssigneeController(
+  new AssignMemberUseCase(cardRepo, membershipRepo, assigneeRepo, activityRepo),
+  new UnassignMemberUseCase(cardRepo, membershipRepo, assigneeRepo),
+  new ListAssigneesUseCase(cardRepo, assigneeRepo)
+)
+
+const labelController = new LabelController(
+  new CreateLabelUseCase(boardRepo, labelRepo),
+  new ListLabelsUseCase(boardRepo, labelRepo),
+  new DeleteLabelUseCase(boardRepo, labelRepo),
+  new AttachLabelUseCase(cardRepo, labelRepo),
+  new DetachLabelUseCase(cardRepo, labelRepo)
 )
 
 // mergeParams: true → ดึง :orgId จาก mount path มาใช้ใน requireRole/controller ได้
@@ -162,6 +208,68 @@ router.delete(
   "/:boardId/cards/:cardId",
   requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
   cardController.deleteCard
+)
+
+// --- Comments (sub-resource ของ card) ---
+router.post(
+  "/:boardId/cards/:cardId/comments",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  validate(createCommentSchema),
+  commentController.addComment
+)
+router.get(
+  "/:boardId/cards/:cardId/comments",
+  requireRole(membershipRepo),
+  commentController.listComments
+)
+// ลบความเห็น: ผ่าน RBAC แค่ต้องเป็นสมาชิก — กฎ "เจ้าของหรือแอดมินเท่านั้น" อยู่ใน use case
+router.delete(
+  "/:boardId/cards/:cardId/comments/:commentId",
+  requireRole(membershipRepo),
+  commentController.deleteComment
+)
+
+// --- Assignees (มอบหมายการ์ดให้สมาชิก) ---
+router.post(
+  "/:boardId/cards/:cardId/assignees",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  validate(assignMemberSchema),
+  assigneeController.assign
+)
+router.get(
+  "/:boardId/cards/:cardId/assignees",
+  requireRole(membershipRepo),
+  assigneeController.list
+)
+router.delete(
+  "/:boardId/cards/:cardId/assignees/:userId",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  assigneeController.unassign
+)
+
+// --- Labels (board-level CRUD + ติด/ถอดจากการ์ด) ---
+router.post(
+  "/:boardId/labels",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  validate(createLabelSchema),
+  labelController.createLabel
+)
+router.get("/:boardId/labels", requireRole(membershipRepo), labelController.listLabels)
+router.delete(
+  "/:boardId/labels/:labelId",
+  requireRole(membershipRepo, "OWNER", "ADMIN"),
+  labelController.deleteLabel
+)
+router.post(
+  "/:boardId/cards/:cardId/labels",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  validate(attachLabelSchema),
+  labelController.attachLabel
+)
+router.delete(
+  "/:boardId/cards/:cardId/labels/:labelId",
+  requireRole(membershipRepo, "OWNER", "ADMIN", "MEMBER"),
+  labelController.detachLabel
 )
 
 // --- Activity feed (อ่านอย่างเดียว สมาชิกทุก role) ---
