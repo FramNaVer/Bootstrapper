@@ -21,6 +21,25 @@ const isDev = env.NODE_ENV !== "production"
 export const logger = pino({
   level: env.LOG_LEVEL,
 
+  // ติดไปกับทุก log → ใช้ filter ใน aggregator ได้ เช่น service="bootstrapper-api" env="production"
+  // (เวลามีหลายแอปส่ง log ไปที่เดียวกัน จะแยกได้ว่าอันไหนของใคร)
+  base: { service: "bootstrapper-api", env: env.NODE_ENV },
+
+  // ป้องกันข้อมูลอ่อนไหวหลุดเข้า log (defense in depth)
+  // ถ้าวันหนึ่งมีคนเผลอ log object ที่มี field พวกนี้ Pino จะแทนค่าด้วย [Redacted]
+  redact: {
+    paths: [
+      "req.headers.authorization",
+      "req.headers.cookie",
+      "*.password",
+      "*.passwordHash",
+      "*.token",
+      "*.accessToken",
+      "*.refreshToken",
+    ],
+    censor: "[Redacted]",
+  },
+
   transport: isDev
     ? {
         target: "pino-pretty",

@@ -1,0 +1,17 @@
+# ไม่ส่งของพวกนี้เข้า build context (เล็ก/เร็ว/ปลอดภัยขึ้น)
+node_modules
+dist
+generated
+npm-debug.log
+
+# ความลับ — ต้องไม่หลุดเข้า image เด็ดขาด (ตั้งค่าผ่าน env ตอน deploy แทน)
+.env
+.env.*
+!.env.example
+
+# dev / vcs
+.git
+.github
+.vscode
+*.md
+coverage
