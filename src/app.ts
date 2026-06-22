@@ -72,6 +72,12 @@ app.get("/", (_req: Request, res: Response) => {
   res.json({ success: true, message: "Bootstrapper API is running" })
 })
 
+// Health check (liveness) — platform/uptime monitor เรียกเช็คว่าแอปยังตอบไหม
+// ตอบเร็ว ไม่แตะ DB เพื่อไม่ให้ DB ช้าลากให้ health ล้มตาม (liveness ≠ readiness)
+app.get("/health", (_req: Request, res: Response) => {
+  res.json({ status: "ok", uptime: process.uptime() })
+})
+
 app.use("/api/v1/auth", authRouter)
 // board ต้องมาก่อน organizations: mount path เจาะจงกว่า (.../:orgId/boards)
 // จะรับ request ของ board เองทั้งหมด ไม่ตกไปให้ organizationRouter รัน middleware ซ้ำ
