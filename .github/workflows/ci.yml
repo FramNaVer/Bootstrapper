@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, dev]
 
+# ยกเลิก run เก่าของ branch เดียวกันเมื่อมี push ใหม่ (ไม่เปลือง CI minutes รันของเก่าที่ตกรุ่นแล้ว)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     runs-on: ubuntu-latest
