@@ -30,7 +30,9 @@ import { VerifyEmailUseCase } from "../../../application/use-cases/verify-email.
 import { ResendVerificationEmailUseCase } from "../../../application/use-cases/resend-verification-email.use-case"
 import { RequestPasswordResetUseCase } from "../../../application/use-cases/request-password-reset.use-case"
 import { ResetPasswordUseCase } from "../../../application/use-cases/reset-password.use-case"
+import { GetMeUseCase } from "../../../application/use-cases/get-me.use-case"
 import { AuthController } from "../../controllers/auth.controller"
+import { authenticate } from "../../middlewares/authenticate.middleware"
 import { setupPassport, setupGithubPassport } from "../../../infrastructure/config/passport.config"
 import { validate } from "@shared/middlewares/validate.middleware"
 import { authRateLimit } from "@shared/middlewares/rate-limit.middleware"
@@ -57,6 +59,7 @@ const googleLoginUseCase = new GoogleLoginUseCase(userRepo, tokenRepo)
 const githubLoginUseCase = new GithubLoginUseCase(userRepo, tokenRepo)
 const refreshTokenUseCase = new RefreshTokenUseCase(tokenRepo)
 const logoutUseCase = new LogoutUseCase(tokenRepo)
+const getMeUseCase = new GetMeUseCase(userRepo)
 
 const sendVerificationEmailUseCase = new SendVerificationEmailUseCase(
   verificationTokenRepo,
@@ -87,7 +90,8 @@ const authController = new AuthController(
   verifyEmailUseCase,
   resendVerificationEmailUseCase,
   requestPasswordResetUseCase,
-  resetPasswordUseCase
+  resetPasswordUseCase,
+  getMeUseCase
 )
 
 // ลงทะเบียน OAuth strategies กับ Passport
@@ -102,6 +106,9 @@ const router = Router()
 // authRateLimit    → จำกัด 10 requests/15 min ต่อ IP
 router.post("/register", authRateLimit, validate(registerSchema), authController.register)
 router.post("/login", authRateLimit, validate(loginSchema), authController.login)
+
+// Current user (ต้อง login) — ใช้ rehydrate สถานะ login ฝั่ง frontend
+router.get("/me", authenticate, authController.me)
 
 // Token Management
 router.post("/refresh", validate(refreshTokenSchema), authController.refreshToken)

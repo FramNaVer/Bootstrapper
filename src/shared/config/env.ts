@@ -38,6 +38,10 @@ const envSchema = z.object({
   // Base URL ของแอป — ใช้ประกอบลิงก์ใน email (verify / reset password)
   APP_URL: z.string().url().default("http://localhost:3000"),
 
+  // URL ของ frontend (SPA) — ใช้ redirect กลับหลัง OAuth สำเร็จ
+  // dev = Vite (5173), production = โดเมน Vercel
+  FRONTEND_URL: z.string().url().default("http://localhost:5173"),
+
   // Email (SMTP) — ถ้าไม่ตั้งค่า dev จะส่งแบบ log preview ออก console แทน
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().default(587),
