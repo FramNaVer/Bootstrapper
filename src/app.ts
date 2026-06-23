@@ -55,9 +55,11 @@ app.use(httpLogger)
 app.use(helmet())
 
 // 4. CORS
+// ALLOWED_ORIGIN รองรับหลายค่าได้ คั่นด้วย comma (เช่น localhost ตอน dev + โดเมน Vercel ตอน prod)
+const allowedOrigins = env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
 app.use(
   cors({
-    origin: env.ALLOWED_ORIGIN,
+    origin: allowedOrigins,
     credentials: true,
   })
 )

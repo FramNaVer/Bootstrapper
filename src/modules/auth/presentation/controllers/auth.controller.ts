@@ -19,7 +19,9 @@ import { VerifyEmailUseCase } from "../../application/use-cases/verify-email.use
 import { ResendVerificationEmailUseCase } from "../../application/use-cases/resend-verification-email.use-case"
 import { RequestPasswordResetUseCase } from "../../application/use-cases/request-password-reset.use-case"
 import { ResetPasswordUseCase } from "../../application/use-cases/reset-password.use-case"
+import { GetMeUseCase } from "../../application/use-cases/get-me.use-case"
 import { logger } from "@shared/logging/logger"
+import { env } from "@shared/config/env"
 
 export class AuthController {
   constructor(
@@ -31,8 +33,23 @@ export class AuthController {
     private verifyEmailUseCase: VerifyEmailUseCase,
     private resendVerificationEmailUseCase: ResendVerificationEmailUseCase,
     private requestPasswordResetUseCase: RequestPasswordResetUseCase,
-    private resetPasswordUseCase: ResetPasswordUseCase
+    private resetPasswordUseCase: ResetPasswordUseCase,
+    private getMeUseCase: GetMeUseCase
   ) {}
+
+  // GET /auth/me — ดึง user ปัจจุบัน (route ผ่าน authenticate middleware แล้ว)
+  me = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = await this.getMeUseCase.execute(req.userId!)
+      res.status(200).json({
+        success: true,
+        message: "Current user retrieved successfully",
+        data: { user },
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
 
   register = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -131,13 +148,7 @@ export class AuthController {
 
   googleLogin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // req.user ถูก set โดย Passport หลัง OAuth callback สำเร็จ
-      const result = req.user as { accessToken: string; refreshToken: string; user: unknown }
-      res.status(200).json({
-        success: true,
-        message: "Google login successful",
-        data: result,
-      })
+      this.redirectToFrontendWithTokens(req, res)
     } catch (error) {
       next(error)
     }
@@ -145,15 +156,23 @@ export class AuthController {
 
   githubLogin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = req.user as { accessToken: string; refreshToken: string; user: unknown }
-      res.status(200).json({
-        success: true,
-        message: "GitHub login successful",
-        data: result,
-      })
+      this.redirectToFrontendWithTokens(req, res)
     } catch (error) {
       next(error)
     }
+  }
+
+  // หลัง OAuth สำเร็จ Passport ใส่ token ไว้ที่ req.user
+  // SPA รับ JSON จาก redirect ตรงๆ ไม่ได้ → เรา redirect กลับ frontend
+  // แนบ token ไว้ใน "hash fragment" (#...) เพราะ fragment ไม่ถูกส่งไป server
+  // จึงไม่โผล่ใน access log / Referer header (ปลอดภัยกว่าใส่ใน query string)
+  private redirectToFrontendWithTokens(req: Request, res: Response) {
+    const { accessToken, refreshToken } = req.user as {
+      accessToken: string
+      refreshToken: string
+    }
+    const params = new URLSearchParams({ accessToken, refreshToken })
+    res.redirect(`${env.FRONTEND_URL}/auth/callback#${params.toString()}`)
   }
 
   refreshToken = async (req: Request, res: Response, next: NextFunction) => {
