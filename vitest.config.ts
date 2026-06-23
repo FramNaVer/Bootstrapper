@@ -1,9 +1,16 @@
 import { defineConfig } from "vitest/config"
+import { fileURLToPath } from "node:url"
 
 export default defineConfig({
-  // resolve path alias (@shared, @modules, @generated) จาก tsconfig.json
-  // ใช้ native support ของ Vite (ไม่ต้องพึ่ง plugin)
-  resolve: { tsconfigPaths: true },
+  // map path alias (@shared, @modules, @generated) ตรงๆ ให้ตรงกับ tsconfig.json
+  // (ใช้ explicit alias แทน tsconfigPaths plugin — ทนต่อการเปลี่ยนเวอร์ชันของ Vite)
+  resolve: {
+    alias: {
+      "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
+      "@modules": fileURLToPath(new URL("./src/modules", import.meta.url)),
+      "@generated": fileURLToPath(new URL("./generated", import.meta.url)),
+    },
+  },
   test: {
     // รัน test จาก src/ เท่านั้น ไม่รวม dist/ ที่ compile แล้ว
     include: ["src/**/*.test.ts"],

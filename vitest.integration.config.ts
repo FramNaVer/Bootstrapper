@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config"
+import { fileURLToPath } from "node:url"
 
 // Integration test config — ต่อ DB จริง (อ่านค่าจาก .env ผ่าน dotenv ใน env.ts)
 // ต่างจาก unit config: ไม่ override DATABASE_URL ด้วยค่า dummy
@@ -7,7 +8,13 @@ import { defineConfig } from "vitest/config"
 // แนะนำให้ตั้ง DATABASE_URL ใน .env ชี้ไป "test database" แยกต่างหาก
 // เพราะเทสต์จะสร้าง/ลบข้อมูลจริง (มี cleanup ใน afterAll แต่กันพลาดไว้ดีกว่า)
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    alias: {
+      "@shared": fileURLToPath(new URL("./src/shared", import.meta.url)),
+      "@modules": fileURLToPath(new URL("./src/modules", import.meta.url)),
+      "@generated": fileURLToPath(new URL("./generated", import.meta.url)),
+    },
+  },
   test: {
     include: ["src/**/*.int.test.ts"],
     // ต่อ DB ทีละ request ตามลำดับ — กัน test แย่ง state กัน

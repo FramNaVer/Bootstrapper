@@ -10,6 +10,7 @@
 import { Request, Response, NextFunction } from "express"
 import { AppError, ValidationError } from "@shared/errors/app.error"
 import { logger } from "@shared/logging/logger"
+import { captureException } from "@shared/observability/sentry"
 
 export function errorHandler(
   err: Error,
@@ -31,6 +32,10 @@ export function errorHandler(
 
   // AppError อื่นๆ (UnauthorizedError, ConflictError, etc.)
   if (err instanceof AppError) {
+    // AppError ที่เป็น 5xx (พบยาก แต่กันไว้) ถือเป็นบั๊กจริง → ส่งเข้า Sentry ด้วย
+    if (err.statusCode >= 500) {
+      captureException(err, { correlationId: req.correlationId })
+    }
     return res.status(err.statusCode).json({
       success: false,
       error: {
@@ -40,7 +45,12 @@ export function errorHandler(
     })
   }
 
-  // Error ที่ไม่รู้จัก → log พร้อม correlationId เพื่อ trace ได้
+  // Error ที่ไม่รู้จัก = บั๊กจริงที่เราต้องไปแก้ (DB ล่ม, null pointer, ฯลฯ)
+  // → ส่งเข้า Sentry เพื่อให้รู้ตัว + ได้ stack trace
+  // ไม่ส่ง 4xx ที่คาดไว้แล้ว (validation/not found) เพื่อไม่ให้ Sentry รก
+  captureException(err, { correlationId: req.correlationId })
+
+  // log พร้อม correlationId เพื่อ trace ได้ (คู่กับ Sentry)
   // ไม่ส่ง detail ให้ client เพื่อป้องกัน internal info รั่ว
   logger.error(
     { err, correlationId: req.correlationId },

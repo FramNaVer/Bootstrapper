@@ -31,6 +31,10 @@ const envSchema = z.object({
   // CORS
   ALLOWED_ORIGIN: z.string().default("http://localhost:3000"),
 
+  // Sentry (error tracking) — optional: ไม่ใส่ = ปิด Sentry (dev ไม่ต้องตั้งก็ได้)
+  // ตั้งค่าใน dashboard ของ host ตอน production เท่านั้น
+  SENTRY_DSN: z.string().optional(),
+
   // Base URL ของแอป — ใช้ประกอบลิงก์ใน email (verify / reset password)
   APP_URL: z.string().url().default("http://localhost:3000"),
 
