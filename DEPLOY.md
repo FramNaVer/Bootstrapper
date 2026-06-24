@@ -32,33 +32,84 @@ docker run --env-file .env -p 3000:3000 bootstrapper-api
 
 ---
 
-## Migrations (สำคัญ — แยกจากการรันแอป)
+## Migrations
 
 image ของแอป (runner) **ไม่มี** Prisma CLI (เป็น devDependency) จึงไม่ migrate เอง
-ให้รัน migration เป็น **ขั้นตอน release แยก** ก่อนสตาร์ทเวอร์ชันใหม่:
+
+**เคสนี้ใช้ Neon DB ตัวเดิมเป็น production** → schema ถูก apply ครบแล้วจากตอน dev
+(`migrate dev`) ดังนั้น **deploy ครั้งแรกไม่ต้องรัน migration**
+
+**เมื่อแก้ schema ในอนาคต** → รัน migrate จากเครื่อง dev ก่อน push:
 
 ```bash
-# รันจากเครื่อง dev หรือ CI ที่มี prisma + เห็น DATABASE_URL ของ production
+# apply migration ที่มีอยู่กับ production DB (ไม่สร้างใหม่/ไม่ลบข้อมูล)
 npx prisma migrate deploy
 ```
 
-> `migrate deploy` ใช้กับ production (apply migration ที่มีอยู่เท่านั้น ไม่สร้างใหม่/ไม่ลบข้อมูล)
-> ต่างจาก `migrate dev` ที่ใช้ตอนพัฒนา
+> ถ้าวันหน้าแยก DB prod ออกจาก dev ค่อยทำ migrate ให้อัตโนมัติตอน deploy
+> (ย้าย `prisma` เป็น dependency + ใส่ release command) — ตอนนี้ยังไม่จำเป็น
 
 ---
 
-## Deploy ขึ้น platform (แนะนำ Railway / Render / Fly.io)
+## Production deploy — Railway (API) + Vercel (web) + domain
 
-ขั้นตอนเหมือนกันทุกเจ้า:
+สถาปัตยกรรมเป้าหมาย:
 
-1. เชื่อม GitHub repo → platform ตรวจเจอ `Dockerfile` แล้ว build เอง
-2. ตั้ง **environment variables** ใน dashboard (ดูรายการใน [.env.example](.env.example)) —
-   **อย่าหาทำาา** commit `.env` จริงเข้า repo
-3. ตั้ง health check path = `/health`
-4. ใส่ release command (ก่อน start): `npx prisma migrate deploy`
-5. `DATABASE_URL` ชี้ไป Neon (pooler URL), `NODE_ENV=production`
+```
+app.tanadon-t.com (Vercel · web)  ──API──►  api.tanadon-t.com (Railway · API)  ──►  Neon (DB)
+```
 
-หลัง deploy จะได้ public URL ให้กดเล่นได้จริง
+### A. Backend → Railway
+
+1. **New Project → Deploy from GitHub** เลือก repo `Bootstrapper` → Railway เจอ
+   `Dockerfile` + `railway.toml` build เอง (health check `/health` ตั้งไว้แล้ว)
+2. ตั้ง **Deploy branch = `main`** (Settings → ไม่ให้ `dev` ไป prod)
+3. ตั้ง **Variables** (เอาจาก [.env.example](.env.example) — ห้าม commit ค่าจริง):
+   - `NODE_ENV=production`
+   - `DATABASE_URL` = Neon **pooler** URL
+   - `JWT_SECRET`, `JWT_REFRESH_SECRET` = ค่าใหม่สำหรับ prod (สร้างด้วย
+     `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+   - `ALLOWED_ORIGIN=https://app.tanadon-t.com`
+   - `FRONTEND_URL=https://app.tanadon-t.com`
+   - `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET`
+   - `GOOGLE_CALLBACK_URL=https://api.tanadon-t.com/api/v1/auth/google/callback`
+   - `GITHUB_CALLBACK_URL=https://api.tanadon-t.com/api/v1/auth/github/callback`
+   - `SENTRY_DSN` (ถ้าต่อ Sentry แล้ว)
+4. **Settings → Networking → Custom Domain** → `api.tanadon-t.com`
+   Railway จะให้ค่า CNAME → เอาไปใส่ใน DNS (ข้อ C)
+
+### B. Frontend → Vercel
+
+1. **Add New Project** เลือก repo `Bootstrapper-Client` → Vercel เจอ Vite เอง
+   (มี `vercel.json` คุม SPA routing แล้ว)
+2. **Production Branch = `main`**
+3. **Environment Variables**: `VITE_API_URL=https://api.tanadon-t.com`
+   > Vite ฝัง env ตอน **build** → ต้องตั้งก่อน deploy
+4. **Settings → Domains** → `app.tanadon-t.com`
+
+### C. DNS (ที่ผู้ให้บริการ domain ของคุณ)
+
+เพิ่ม 2 CNAME records (ค่าปลายทางเอาจาก Railway/Vercel ในข้อ A4/B4):
+
+| Host | Type | ชี้ไป |
+|------|------|------|
+| `api` | CNAME | (ค่าที่ Railway ให้) |
+| `app` | CNAME | (ค่าที่ Vercel ให้ มักเป็น `cname.vercel-dns.com`) |
+
+### D. Google / GitHub OAuth Console
+
+- **Google Cloud Console** → Credentials → OAuth client → **Authorized redirect URIs**
+  เพิ่ม `https://api.tanadon-t.com/api/v1/auth/google/callback`
+- **GitHub** → OAuth App → **Authorization callback URL**
+  ตั้ง `https://api.tanadon-t.com/api/v1/auth/github/callback`
+
+### ลำดับที่ปลอดภัย
+
+1. เชื่อม Railway + Vercel (branch = main) + ตั้ง env + custom domain
+2. ตั้ง DNS + OAuth callback
+3. เปิด **Branch Protection** ที่ `main` (require CI ผ่านก่อน merge)
+4. merge `dev` → `main` → ทั้งสอง platform deploy prod อัตโนมัติ
+5. ทดสอบ: เปิด `https://app.tanadon-t.com` → สมัคร/login (รวม Google)
 
 ---
 

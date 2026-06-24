@@ -46,8 +46,9 @@ USER node
 EXPOSE 3000
 
 # healthcheck ให้ Docker/platform รู้ว่า container ยัง "มีชีวิต"
+# อ่าน PORT จาก env (Railway/host inject port เอง อาจไม่ใช่ 3000) — กัน healthcheck เช็คผิด port
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "const p=process.env.PORT||3000;fetch('http://localhost:'+p+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # start = node -r tsconfig-paths/register dist/main.js (ดู package.json)
 CMD ["npm", "start"]
