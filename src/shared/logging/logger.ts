@@ -1,0 +1,53 @@
+// =============================================================
+// Pino Logger
+// =============================================================
+// Pino คือ JSON logger ที่เร็วที่สุดใน Node.js ecosystem
+//
+// ทำไม JSON logs?
+// - Log aggregator (Datadog, Grafana Loki, CloudWatch) parse JSON ได้เลย
+// - Filter/search logs ด้วย field ได้ เช่น level="error" userId="123"
+// - เก็บ context ได้มากกว่า plain text
+//
+// สองโหมด:
+//   development → pino-pretty (อ่านง่าย มีสี)
+//   production  → JSON ล้วน (เร็ว, เครื่องอ่าน)
+// =============================================================
+
+import pino from "pino"
+import { env } from "@shared/config/env"
+
+const isDev = env.NODE_ENV !== "production"
+
+export const logger = pino({
+  level: env.LOG_LEVEL,
+
+  // ติดไปกับทุก log → ใช้ filter ใน aggregator ได้ เช่น service="bootstrapper-api" env="production"
+  // (เวลามีหลายแอปส่ง log ไปที่เดียวกัน จะแยกได้ว่าอันไหนของใคร)
+  base: { service: "bootstrapper-api", env: env.NODE_ENV },
+
+  // ป้องกันข้อมูลอ่อนไหวหลุดเข้า log (defense in depth)
+  // ถ้าวันหนึ่งมีคนเผลอ log object ที่มี field พวกนี้ Pino จะแทนค่าด้วย [Redacted]
+  redact: {
+    paths: [
+      "req.headers.authorization",
+      "req.headers.cookie",
+      "*.password",
+      "*.passwordHash",
+      "*.token",
+      "*.accessToken",
+      "*.refreshToken",
+    ],
+    censor: "[Redacted]",
+  },
+
+  transport: isDev
+    ? {
+        target: "pino-pretty",
+        options: {
+          colorize: true,
+          translateTime: "SYS:HH:MM:ss",
+          ignore: "pid,hostname", // ซ่อน field ที่ไม่จำเป็นใน dev
+        },
+      }
+    : undefined, // production ใช้ JSON ล้วนโดยไม่มี transform
+})

@@ -1,0 +1,335 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  displayName     String?
+  avatarUrl       String?
+  role            Role     @default(USER)
+  isEmailVerified Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  passwordHash       UserPassword?
+  oauthProviders     UserOAuthProvider[]
+  refreshTokens      RefreshToken[]
+  verificationTokens VerificationToken[]
+  memberships        Membership[]
+  comments           Comment[]
+  activities         ActivityLog[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserPassword {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Token แบบใช้ครั้งเดียว สำหรับ email verification และ password reset
+// เก็บเฉพาะ hash ของ token (ไม่เก็บตัวจริง) — ถ้า DB หลุด token ก็ใช้ไม่ได้
+model VerificationToken {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  type       TokenType
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserOAuthProvider {
+  id             String    @id @default(uuid())
+  userId         String
+  provider       Provider
+  providerUserId String
+  accessToken    String
+  refreshToken   String?
+  tokenExpiry    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+// Enums 
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Provider {
+  GOOGLE
+  FACEBOOK
+  GITHUB
+}
+
+enum TokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+// Phase 2 — Multi-tenant: Organizations, Memberships, Invitations
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  invitations Invitation[]
+
+  // Phase 3 — ทุกตาราง entity ถือ organizationId เพื่อพร้อมทำ Row-Level Security
+  boards     Board[]
+  lists      List[]
+  cards      Card[]
+  labels     Label[]
+  comments   Comment[]
+  activities ActivityLog[]
+}
+
+// ตารางเชื่อม user ↔ organization พร้อม role (หัวใจของ multi-tenant + RBAC)
+model Membership {
+  id             String         @id @default(uuid())
+  userId         String
+  organizationId String
+  role           MembershipRole @default(MEMBER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // การ์ดที่ membership นี้ถูกมอบหมาย (assignee ชี้ไป membership ไม่ใช่ user)
+  cardAssignees CardAssignee[]
+
+  // 1 user เป็นสมาชิก 1 org ได้แค่ครั้งเดียว
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+// คำเชิญเข้าร่วม org — เก็บ hash ของ token (เหมือน verification token เฟส 1)
+model Invitation {
+  id             String           @id @default(uuid())
+  organizationId String
+  email          String
+  role           MembershipRole   @default(MEMBER)
+  tokenHash      String           @unique
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+// Phase 3 — Project Management: Boards, Lists, Cards (Trello-like)
+//
+// หลักการออกแบบ:
+// - organizationId อยู่ทุกตาราง entity → พร้อมทำ Row-Level Security ภายหลัง
+// - deletedAt (soft delete) บนตารางเนื้อหา → ทำถังขยะ/กู้คืนได้ (filter deletedAt: null ทุก query)
+// - onDelete: Cascade ยังคงไว้สำหรับการลบจริง (เช่น ลบทั้ง org) — soft delete จัดการที่ชั้น app
+
+// Board = กระดานงาน 1 ใบ ผูกกับ org (tenant anchor)
+model Board {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  lists        List[]
+  labels       Label[]
+  cards        Card[]
+  activities   ActivityLog[]
+
+  @@index([organizationId, deletedAt])
+}
+
+// List = คอลัมน์ในกระดาน (To Do / Doing / Done)
+model List {
+  id             String    @id @default(uuid())
+  organizationId String
+  boardId        String
+  name           String
+  position       Float // ลำดับคอลัมน์ (Float → แทรกกลางได้โดย update แถวเดียว)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  board        Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards        Card[]
+
+  @@index([boardId, deletedAt])
+  @@index([organizationId])
+}
+
+// Card = การ์ดงาน
+model Card {
+  id             String    @id @default(uuid())
+  organizationId String
+  boardId        String // denormalize → query ระดับ board ไม่ต้อง JOIN ผ่าน list
+  listId         String
+  title          String
+  description    String?
+  position       Float // ลำดับการ์ดภายใน list
+  dueDate        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  board        Board          @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  list         List           @relation(fields: [listId], references: [id], onDelete: Cascade)
+  assignees    CardAssignee[]
+  labels       CardLabel[]
+  comments     Comment[]
+
+  @@index([listId, deletedAt])
+  @@index([boardId])
+  @@index([organizationId])
+}
+
+// ตารางเชื่อม Card ↔ Membership (ใครรับผิดชอบการ์ด)
+// ชี้ไป Membership ไม่ใช่ User → การันตีที่ระดับ DB ว่า assignee เป็นสมาชิก org นั้น
+model CardAssignee {
+  cardId       String
+  membershipId String
+  assignedAt   DateTime @default(now())
+
+  card       Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, membershipId]) // กันมอบหมายซ้ำ คนเดียวในการ์ดเดียว
+  @@index([membershipId])
+}
+
+// Label = ป้ายกำกับ (ผูกกับ board — แต่ละกระดานมีชุดป้ายของตัวเอง)
+model Label {
+  id             String @id @default(uuid())
+  organizationId String
+  boardId        String
+  name           String
+  color          String // เก็บ hex เช่น "#61BD4F"
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  board        Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards        CardLabel[]
+
+  @@unique([boardId, name]) // ชื่อป้ายห้ามซ้ำในกระดานเดียว
+  @@index([organizationId])
+}
+
+model CardLabel {
+  cardId  String
+  labelId String
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([labelId])
+}
+
+// Comment = ความเห็นในการ์ด
+model Comment {
+  id             String    @id @default(uuid())
+  organizationId String
+  cardId         String
+  authorId       String // = userId ของคนเขียน
+  body           String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  card         Card         @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, deletedAt])
+  @@index([organizationId])
+}
+
+// ActivityLog = ฟีดอัพเดตของกระดาน ("ใครทำอะไร เมื่อไหร่") — append-only ไม่มี soft delete
+model ActivityLog {
+  id             String     @id @default(uuid())
+  organizationId String
+  boardId        String
+  actorId        String // userId ของคนทำ action
+  action         ActionType
+  payload        Json? // รายละเอียดเพิ่มเติม (เช่น from/to list)
+  createdAt      DateTime   @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  board        Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  actor        User         @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, createdAt])
+  @@index([organizationId])
+}
+
+enum ActionType {
+  CARD_CREATED
+  CARD_MOVED
+  CARD_UPDATED
+  CARD_DELETED
+  COMMENT_ADDED
+  MEMBER_ASSIGNED
+}

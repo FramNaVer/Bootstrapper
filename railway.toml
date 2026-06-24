@@ -1,0 +1,11 @@
+# Railway config — ใช้ Dockerfile ที่มีอยู่ + ตั้ง health check
+# Railway จะ build จาก Dockerfile แล้วรอจน GET /health ผ่านก่อนสลับ traffic ไปเวอร์ชันใหม่
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
