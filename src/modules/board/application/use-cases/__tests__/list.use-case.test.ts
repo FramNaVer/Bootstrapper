@@ -4,6 +4,7 @@ import { UpdateListUseCase } from "../update-list.use-case"
 import { DeleteListUseCase } from "../delete-list.use-case"
 import { BoardRepository } from "../../../domain/repositories/board.repository"
 import { ListRepository } from "../../../domain/repositories/list.repository"
+import { CardRepository } from "../../../domain/repositories/card.repository"
 import { BoardEntity } from "../../../domain/entities/board.entity"
 import { ListEntity } from "../../../domain/entities/list.entity"
 
@@ -43,6 +44,17 @@ const mockListRepo: ListRepository = {
   getMaxPosition: vi.fn(),
   update: vi.fn(),
   softDelete: vi.fn(),
+}
+
+const mockCardRepo: CardRepository = {
+  create: vi.fn(),
+  findById: vi.fn(),
+  listByBoard: vi.fn(),
+  getMaxPosition: vi.fn(),
+  update: vi.fn(),
+  move: vi.fn(),
+  softDelete: vi.fn(),
+  softDeleteByList: vi.fn(),
 }
 
 beforeEach(() => {
@@ -138,12 +150,13 @@ describe("UpdateListUseCase", () => {
 
 // DeleteListUseCase
 describe("DeleteListUseCase", () => {
-  it("should soft-delete when list is valid", async () => {
+  it("should soft-delete the list and cascade its cards when valid", async () => {
     vi.mocked(mockListRepo.findById).mockResolvedValue(mockList)
-    const useCase = new DeleteListUseCase(mockListRepo)
+    const useCase = new DeleteListUseCase(mockListRepo, mockCardRepo)
 
     await useCase.execute("org-1", "board-1", "list-1")
 
+    expect(mockCardRepo.softDeleteByList).toHaveBeenCalledWith("list-1")
     expect(mockListRepo.softDelete).toHaveBeenCalledWith("list-1")
   })
 
@@ -152,11 +165,12 @@ describe("DeleteListUseCase", () => {
       ...mockList,
       boardId: "board-999",
     })
-    const useCase = new DeleteListUseCase(mockListRepo)
+    const useCase = new DeleteListUseCase(mockListRepo, mockCardRepo)
 
     await expect(
       useCase.execute("org-1", "board-1", "list-1")
     ).rejects.toThrow("List not found")
     expect(mockListRepo.softDelete).not.toHaveBeenCalled()
+    expect(mockCardRepo.softDeleteByList).not.toHaveBeenCalled()
   })
 })

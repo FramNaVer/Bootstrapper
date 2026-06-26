@@ -41,6 +41,7 @@ const mockCardRepo: CardRepository = {
   update: vi.fn(),
   move: vi.fn(),
   softDelete: vi.fn(),
+  softDeleteByList: vi.fn(),
 }
 
 const mockListRepo: ListRepository = {

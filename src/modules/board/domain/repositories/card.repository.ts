@@ -27,4 +27,7 @@ export interface CardRepository {
   move(id: string, data: { listId: string; position: number }): Promise<CardEntity>
 
   softDelete(id: string): Promise<void>
+
+  // ลบการ์ดทั้งหมดใน list หนึ่ง (ใช้ตอนลบคอลัมน์ → การ์ดไม่ลอยค้าง)
+  softDeleteByList(listId: string): Promise<void>
 }

@@ -88,7 +88,7 @@ const listController = new ListController(
   new CreateListUseCase(boardRepo, listRepo),
   new ListListsUseCase(boardRepo, listRepo),
   new UpdateListUseCase(listRepo),
-  new DeleteListUseCase(listRepo)
+  new DeleteListUseCase(listRepo, cardRepo)
 )
 
 const cardController = new CardController(

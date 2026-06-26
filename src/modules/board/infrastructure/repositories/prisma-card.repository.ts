@@ -93,4 +93,11 @@ export class PrismaCardRepository implements CardRepository {
       data: { deletedAt: new Date() },
     })
   }
+
+  async softDeleteByList(listId: string): Promise<void> {
+    await this.prisma.card.updateMany({
+      where: { listId, deletedAt: null },
+      data: { deletedAt: new Date() },
+    })
+  }
 }
