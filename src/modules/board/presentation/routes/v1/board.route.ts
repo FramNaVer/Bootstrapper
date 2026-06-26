@@ -44,6 +44,7 @@ import { ListLabelsUseCase } from "../../../application/use-cases/list-labels.us
 import { DeleteLabelUseCase } from "../../../application/use-cases/delete-label.use-case"
 import { AttachLabelUseCase } from "../../../application/use-cases/attach-label.use-case"
 import { DetachLabelUseCase } from "../../../application/use-cases/detach-label.use-case"
+import { ListCardLabelsUseCase } from "../../../application/use-cases/list-card-labels.use-case"
 import { BoardController } from "../../controllers/board.controller"
 import { ListController } from "../../controllers/list.controller"
 import { CardController } from "../../controllers/card.controller"
@@ -120,7 +121,8 @@ const labelController = new LabelController(
   new ListLabelsUseCase(boardRepo, labelRepo),
   new DeleteLabelUseCase(boardRepo, labelRepo),
   new AttachLabelUseCase(cardRepo, labelRepo),
-  new DetachLabelUseCase(cardRepo, labelRepo)
+  new DetachLabelUseCase(cardRepo, labelRepo),
+  new ListCardLabelsUseCase(cardRepo, labelRepo)
 )
 
 // mergeParams: true → ดึง :orgId จาก mount path มาใช้ใน requireRole/controller ได้
@@ -255,6 +257,12 @@ router.post(
   labelController.createLabel
 )
 router.get("/:boardId/labels", requireRole(membershipRepo), labelController.listLabels)
+// label ที่ติดอยู่บนการ์ดใบหนึ่ง (อ่านอย่างเดียว สมาชิกทุก role)
+router.get(
+  "/:boardId/cards/:cardId/labels",
+  requireRole(membershipRepo),
+  labelController.listCardLabels
+)
 router.delete(
   "/:boardId/labels/:labelId",
   requireRole(membershipRepo, "OWNER", "ADMIN"),
