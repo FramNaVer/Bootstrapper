@@ -10,3 +10,21 @@ export interface CardEntity {
   createdAt: Date
   updatedAt: Date
 }
+
+// ข้อมูลย่อสำหรับแสดง chip บนการ์ดในบอร์ด (ไม่ต้องโหลดทั้ง entity)
+export interface CardLabelSummary {
+  id: string
+  name: string
+  color: string
+}
+export interface CardAssigneeSummary {
+  userId: string
+  displayName: string | null
+  email: string
+}
+
+// การ์ด + ความสัมพันธ์ที่ต้องโชว์บนหน้าบอร์ด (label สี + avatar คนรับผิดชอบ)
+export interface CardWithRelations extends CardEntity {
+  labels: CardLabelSummary[]
+  assignees: CardAssigneeSummary[]
+}
