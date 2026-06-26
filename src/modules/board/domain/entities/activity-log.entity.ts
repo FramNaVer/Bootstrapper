@@ -7,6 +7,9 @@ export type ActionType =
   | "CARD_DELETED"
   | "COMMENT_ADDED"
   | "MEMBER_ASSIGNED"
+  | "LIST_CREATED"
+  | "LIST_RENAMED"
+  | "LIST_DELETED"
 
 export interface ActivityLogEntity {
   id: string
@@ -16,4 +19,10 @@ export interface ActivityLogEntity {
   action: ActionType
   payload: unknown | null
   createdAt: Date
+}
+
+// สำหรับแสดงฟีด — แนบชื่อ/อีเมลคนทำ action มาด้วย (ไม่ต้องโชว์ actorId ดิบ)
+export interface ActivityLogWithActor extends ActivityLogEntity {
+  actorName: string | null
+  actorEmail: string
 }

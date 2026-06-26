@@ -85,10 +85,10 @@ const boardController = new BoardController(
 )
 
 const listController = new ListController(
-  new CreateListUseCase(boardRepo, listRepo),
+  new CreateListUseCase(boardRepo, listRepo, activityRepo),
   new ListListsUseCase(boardRepo, listRepo),
-  new UpdateListUseCase(listRepo),
-  new DeleteListUseCase(listRepo, cardRepo)
+  new UpdateListUseCase(listRepo, activityRepo),
+  new DeleteListUseCase(listRepo, cardRepo, activityRepo)
 )
 
 const cardController = new CardController(
