@@ -17,6 +17,7 @@ export class ListController {
       const list = await this.createListUseCase.execute(
         req.params.orgId as string,
         req.params.boardId as string,
+        req.userId!,
         req.body
       )
       res.status(201).json({
@@ -51,6 +52,7 @@ export class ListController {
         req.params.orgId as string,
         req.params.boardId as string,
         req.params.listId as string,
+        req.userId!,
         req.body
       )
       res.status(200).json({
@@ -68,7 +70,8 @@ export class ListController {
       await this.deleteListUseCase.execute(
         req.params.orgId as string,
         req.params.boardId as string,
-        req.params.listId as string
+        req.params.listId as string,
+        req.userId!
       )
       res.status(200).json({
         success: true,

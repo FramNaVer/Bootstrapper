@@ -1,5 +1,6 @@
 import { BoardRepository } from "../../domain/repositories/board.repository"
 import { ListRepository } from "../../domain/repositories/list.repository"
+import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getBoardInOrg } from "../utils/board-access.util"
 
 // เว้นช่องว่างระหว่าง position แต่ละ list ไว้กว้างๆ
@@ -9,12 +10,14 @@ const POSITION_GAP = 1000
 export class CreateListUseCase {
   constructor(
     private boardRepo: BoardRepository,
-    private listRepo: ListRepository
+    private listRepo: ListRepository,
+    private activityRepo: ActivityLogRepository
   ) {}
 
   async execute(
     organizationId: string,
     boardId: string,
+    actorId: string,
     data: { name: string }
   ) {
     const board = await getBoardInOrg(this.boardRepo, boardId, organizationId)
@@ -23,11 +26,21 @@ export class CreateListUseCase {
     const maxPosition = await this.listRepo.getMaxPosition(boardId)
     const position = (maxPosition ?? 0) + POSITION_GAP
 
-    return this.listRepo.create({
+    const list = await this.listRepo.create({
       organizationId: board.organizationId,
       boardId,
       name: data.name,
       position,
     })
+
+    await this.activityRepo.create({
+      organizationId,
+      boardId,
+      actorId,
+      action: "LIST_CREATED",
+      payload: { listId: list.id, name: list.name },
+    })
+
+    return list
   }
 }

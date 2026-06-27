@@ -15,7 +15,7 @@ export class InvitationController {
   // POST /organizations/:orgId/invitations  (OWNER/ADMIN)
   invite = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await this.inviteMemberUseCase.execute({
+      const result = await this.inviteMemberUseCase.execute({
         organizationId: req.params.orgId as string,
         inviterRole: req.membershipRole as MembershipRole,
         email: req.body.email,
@@ -24,7 +24,7 @@ export class InvitationController {
       res.status(201).json({
         success: true,
         message: "Invitation sent successfully",
-        data: null,
+        data: { acceptUrl: result.acceptUrl },
       })
     } catch (error) {
       next(error)

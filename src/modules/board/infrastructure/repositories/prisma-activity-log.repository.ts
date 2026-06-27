@@ -2,7 +2,7 @@ import { PrismaClient, Prisma } from "@generated/prisma"
 import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import {
   ActionType,
-  ActivityLogEntity,
+  ActivityLogWithActor,
 } from "../../domain/entities/activity-log.entity"
 
 export class PrismaActivityLogRepository implements ActivityLogRepository {
@@ -29,9 +29,10 @@ export class PrismaActivityLogRepository implements ActivityLogRepository {
   async listByBoard(
     boardId: string,
     limit = 50
-  ): Promise<ActivityLogEntity[]> {
+  ): Promise<ActivityLogWithActor[]> {
     const rows = await this.prisma.activityLog.findMany({
       where: { boardId },
+      include: { actor: { select: { displayName: true, email: true } } },
       orderBy: { createdAt: "desc" },
       take: limit,
     })
@@ -43,6 +44,8 @@ export class PrismaActivityLogRepository implements ActivityLogRepository {
       action: r.action as ActionType,
       payload: r.payload,
       createdAt: r.createdAt,
+      actorName: r.actor.displayName,
+      actorEmail: r.actor.email,
     }))
   }
 }

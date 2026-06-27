@@ -4,6 +4,7 @@ import { ListLabelsUseCase } from "../../application/use-cases/list-labels.use-c
 import { DeleteLabelUseCase } from "../../application/use-cases/delete-label.use-case"
 import { AttachLabelUseCase } from "../../application/use-cases/attach-label.use-case"
 import { DetachLabelUseCase } from "../../application/use-cases/detach-label.use-case"
+import { ListCardLabelsUseCase } from "../../application/use-cases/list-card-labels.use-case"
 
 export class LabelController {
   constructor(
@@ -11,7 +12,8 @@ export class LabelController {
     private listLabelsUseCase: ListLabelsUseCase,
     private deleteLabelUseCase: DeleteLabelUseCase,
     private attachLabelUseCase: AttachLabelUseCase,
-    private detachLabelUseCase: DetachLabelUseCase
+    private detachLabelUseCase: DetachLabelUseCase,
+    private listCardLabelsUseCase: ListCardLabelsUseCase
   ) {}
 
   createLabel = async (req: Request, res: Response, next: NextFunction) => {
@@ -58,6 +60,23 @@ export class LabelController {
         success: true,
         message: "Label deleted successfully",
         data: null,
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+
+  listCardLabels = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const labels = await this.listCardLabelsUseCase.execute(
+        req.params.orgId as string,
+        req.params.boardId as string,
+        req.params.cardId as string
+      )
+      res.status(200).json({
+        success: true,
+        message: "Card labels retrieved successfully",
+        data: { labels },
       })
     } catch (error) {
       next(error)

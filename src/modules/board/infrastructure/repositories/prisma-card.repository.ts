@@ -1,6 +1,9 @@
 import { PrismaClient } from "@generated/prisma"
 import { CardRepository } from "../../domain/repositories/card.repository"
-import { CardEntity } from "../../domain/entities/card.entity"
+import {
+  CardEntity,
+  CardWithRelations,
+} from "../../domain/entities/card.entity"
 
 export class PrismaCardRepository implements CardRepository {
   constructor(private prisma: PrismaClient) {}
@@ -29,11 +32,37 @@ export class PrismaCardRepository implements CardRepository {
     return this.prisma.card.findFirst({ where: { id, deletedAt: null } })
   }
 
-  async listByBoard(boardId: string): Promise<CardEntity[]> {
-    return this.prisma.card.findMany({
+  async listByBoard(boardId: string): Promise<CardWithRelations[]> {
+    const rows = await this.prisma.card.findMany({
       where: { boardId, deletedAt: null },
       orderBy: { position: "asc" },
+      include: {
+        labels: { include: { label: true } },
+        assignees: { include: { membership: { include: { user: true } } } },
+      },
     })
+    return rows.map((r) => ({
+      id: r.id,
+      organizationId: r.organizationId,
+      boardId: r.boardId,
+      listId: r.listId,
+      title: r.title,
+      description: r.description,
+      position: r.position,
+      dueDate: r.dueDate,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      labels: r.labels.map((cl) => ({
+        id: cl.label.id,
+        name: cl.label.name,
+        color: cl.label.color,
+      })),
+      assignees: r.assignees.map((a) => ({
+        userId: a.membership.userId,
+        displayName: a.membership.user.displayName,
+        email: a.membership.user.email,
+      })),
+    }))
   }
 
   async getMaxPosition(listId: string): Promise<number | null> {
@@ -61,6 +90,13 @@ export class PrismaCardRepository implements CardRepository {
   async softDelete(id: string): Promise<void> {
     await this.prisma.card.update({
       where: { id },
+      data: { deletedAt: new Date() },
+    })
+  }
+
+  async softDeleteByList(listId: string): Promise<void> {
+    await this.prisma.card.updateMany({
+      where: { listId, deletedAt: null },
       data: { deletedAt: new Date() },
     })
   }

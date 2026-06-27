@@ -110,6 +110,9 @@ model Organization {
   id        String   @id @default(uuid())
   name      String
   slug      String   @unique
+  // userId ของผู้ก่อตั้ง — ปกป้องไม่ให้ owner คนอื่นลด/ลบผู้ก่อตั้ง
+  // nullable: org ที่สร้างก่อนเพิ่มฟิลด์นี้จะเป็น null (ไม่มีการปกป้อง)
+  createdById String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -332,4 +335,7 @@ enum ActionType {
   CARD_DELETED
   COMMENT_ADDED
   MEMBER_ASSIGNED
+  LIST_CREATED
+  LIST_RENAMED
+  LIST_DELETED
 }

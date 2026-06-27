@@ -1,4 +1,5 @@
 import { MembershipRepository } from "../../domain/repositories/membership.repository"
+import { OrganizationRepository } from "../../domain/repositories/organization.repository"
 import { MembershipRole } from "../../domain/entities/membership.entity"
 import {
   NotFoundError,
@@ -7,14 +8,18 @@ import {
 } from "@shared/errors/app.error"
 
 export class RemoveMemberUseCase {
-  constructor(private membershipRepo: MembershipRepository) {}
+  constructor(
+    private membershipRepo: MembershipRepository,
+    private orgRepo: OrganizationRepository
+  ) {}
 
   async execute(params: {
     organizationId: string
+    callerUserId: string
     callerRole: MembershipRole
     targetUserId: string
   }) {
-    const { organizationId, callerRole, targetUserId } = params
+    const { organizationId, callerUserId, callerRole, targetUserId } = params
 
     const target = await this.membershipRepo.findByUserAndOrg(
       targetUserId,
@@ -22,6 +27,16 @@ export class RemoveMemberUseCase {
     )
     if (!target) {
       throw new NotFoundError("Member")
+    }
+
+    // กฎ: ผู้ก่อตั้ง org ถูกใครลบไม่ได้ (แม้ owner อื่น) — มีแต่ตัวเองทำได้ (เช่นออกเอง)
+    const org = await this.orgRepo.findById(organizationId)
+    if (
+      org?.createdById &&
+      targetUserId === org.createdById &&
+      callerUserId !== org.createdById
+    ) {
+      throw new ForbiddenError("The organization's creator cannot be removed")
     }
 
     // ADMIN ลบ OWNER ไม่ได้ — เฉพาะ OWNER เท่านั้น

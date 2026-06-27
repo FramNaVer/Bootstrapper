@@ -30,6 +30,7 @@ export class MemberController {
     try {
       await this.changeMemberRoleUseCase.execute({
         organizationId: req.params.orgId as string,
+        callerUserId: req.userId!,
         // req.membershipRole ถูกใส่โดย requireRole middleware แล้ว
         callerRole: req.membershipRole as MembershipRole,
         targetUserId: req.params.userId as string,
@@ -49,6 +50,7 @@ export class MemberController {
     try {
       await this.removeMemberUseCase.execute({
         organizationId: req.params.orgId as string,
+        callerUserId: req.userId!,
         callerRole: req.membershipRole as MembershipRole,
         targetUserId: req.params.userId as string,
       })
