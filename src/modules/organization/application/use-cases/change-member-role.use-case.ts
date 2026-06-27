@@ -1,4 +1,5 @@
 import { MembershipRepository } from "../../domain/repositories/membership.repository"
+import { OrganizationRepository } from "../../domain/repositories/organization.repository"
 import { MembershipRole } from "../../domain/entities/membership.entity"
 import {
   NotFoundError,
@@ -7,15 +8,20 @@ import {
 } from "@shared/errors/app.error"
 
 export class ChangeMemberRoleUseCase {
-  constructor(private membershipRepo: MembershipRepository) {}
+  constructor(
+    private membershipRepo: MembershipRepository,
+    private orgRepo: OrganizationRepository
+  ) {}
 
   async execute(params: {
     organizationId: string
+    callerUserId: string
     callerRole: MembershipRole
     targetUserId: string
     newRole: MembershipRole
   }) {
-    const { organizationId, callerRole, targetUserId, newRole } = params
+    const { organizationId, callerUserId, callerRole, targetUserId, newRole } =
+      params
 
     const target = await this.membershipRepo.findByUserAndOrg(
       targetUserId,
@@ -23,6 +29,16 @@ export class ChangeMemberRoleUseCase {
     )
     if (!target) {
       throw new NotFoundError("Member")
+    }
+
+    // กฎ: ผู้ก่อตั้ง org ถูกใครลด/เปลี่ยน role ไม่ได้ (แม้ owner อื่น) — มีแต่ตัวเองทำได้
+    const org = await this.orgRepo.findById(organizationId)
+    if (
+      org?.createdById &&
+      targetUserId === org.createdById &&
+      callerUserId !== org.createdById
+    ) {
+      throw new ForbiddenError("The organization's creator cannot be changed")
     }
 
     // กฎ: เฉพาะ OWNER เท่านั้นที่จัดการ OWNER หรือแต่งตั้ง OWNER ใหม่ได้
