@@ -57,7 +57,12 @@ export class InviteMemberUseCase {
       expiresAt,
     })
 
-    const acceptUrl = `${env.APP_URL}/accept-invitation?token=${rawToken}`
+    // ลิงก์ชี้ไป "หน้าเว็บ (SPA)" ไม่ใช่ backend — หน้านั้นจะอ่าน token แล้วเรียก /accept
+    const acceptUrl = `${env.FRONTEND_URL}/accept-invitation?token=${rawToken}`
     await this.invitationEmail.sendInvite(email, acceptUrl)
+
+    // คืนลิงก์กลับไปด้วย → ฝั่งหน้าเว็บเอาไปให้ผู้เชิญ "คัดลอกลิงก์" แชร์เองได้
+    // (ใช้งานได้แม้ไม่ตั้ง SMTP) — ผู้เรียกเป็น OWNER/ADMIN ที่มีสิทธิ์เชิญอยู่แล้ว
+    return { acceptUrl, email }
   }
 }
