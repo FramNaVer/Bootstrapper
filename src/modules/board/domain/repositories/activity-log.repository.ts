@@ -1,4 +1,7 @@
-import { ActionType, ActivityLogEntity } from "../entities/activity-log.entity"
+import {
+  ActionType,
+  ActivityLogWithActor,
+} from "../entities/activity-log.entity"
 
 export interface ActivityLogRepository {
   create(data: {
@@ -9,6 +12,6 @@ export interface ActivityLogRepository {
     payload?: unknown
   }): Promise<void>
 
-  // ฟีดล่าสุดของ board เรียงใหม่→เก่า (limit กันดึงทั้งหมด)
-  listByBoard(boardId: string, limit?: number): Promise<ActivityLogEntity[]>
+  // ฟีดล่าสุดของ board เรียงใหม่→เก่า (limit กันดึงทั้งหมด) พร้อมชื่อคนทำ
+  listByBoard(boardId: string, limit?: number): Promise<ActivityLogWithActor[]>
 }

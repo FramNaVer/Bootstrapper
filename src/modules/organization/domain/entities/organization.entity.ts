@@ -4,6 +4,7 @@ export interface OrganizationEntity {
   id: string
   name: string
   slug: string
+  createdById: string | null
   createdAt: Date
   updatedAt: Date
 }

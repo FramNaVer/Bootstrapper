@@ -43,8 +43,8 @@ const organizationController = new OrganizationController(
 
 const memberController = new MemberController(
   new ListMembersUseCase(membershipRepo),
-  new ChangeMemberRoleUseCase(membershipRepo),
-  new RemoveMemberUseCase(membershipRepo)
+  new ChangeMemberRoleUseCase(membershipRepo, orgRepo),
+  new RemoveMemberUseCase(membershipRepo, orgRepo)
 )
 
 // invitation (org-scoped) — ใช้ UserRepository ของ auth module เช็คสมาชิกเดิม

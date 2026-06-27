@@ -8,6 +8,10 @@ import {
 export class PrismaOrganizationRepository implements OrganizationRepository {
   constructor(private prisma: PrismaClient) {}
 
+  async findById(id: string): Promise<OrganizationEntity | null> {
+    return this.prisma.organization.findUnique({ where: { id } })
+  }
+
   async findBySlug(slug: string): Promise<OrganizationEntity | null> {
     return this.prisma.organization.findUnique({ where: { slug } })
   }
@@ -21,7 +25,8 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
     // กันสภาพ "มี org แต่ไม่มีเจ้าของ" ถ้าพังกลางคัน
     return this.prisma.$transaction(async (tx) => {
       const org = await tx.organization.create({
-        data: { name: data.name, slug: data.slug },
+        // บันทึกผู้สร้างไว้ → ใช้ปกป้องไม่ให้ owner อื่นลด/ลบผู้ก่อตั้ง
+        data: { name: data.name, slug: data.slug, createdById: data.ownerUserId },
       })
       await tx.membership.create({
         data: {
