@@ -1,13 +1,11 @@
 // =============================================================
 // Real-time (Socket.io)
 // =============================================================
-// แพทเทิร์น "invalidate over the wire":
-//   - client ยัง mutate ผ่าน REST เหมือนเดิม (auth/RBAC ครบ)
-//   - หลัง mutation สำเร็จ controller เรียก emitBoardChange(boardId)
-//   - server broadcast event เบาๆ (ไม่มี data) ไปห้อง board:<id>
-//   - client คนอื่นในห้องรับ event แล้ว refetch ผ่าน TanStack Query เอง
+// 1) "invalidate over the wire" — หลัง mutation สำเร็จ broadcast สัญญาณเบาๆ
+//    ให้คนอื่นในห้องบอร์ด refetch ผ่าน TanStack Query (ไม่ส่ง data จริง)
+// 2) presence — ใครกำลังดูบอร์ดเดียวกันบ้าง (avatar เด้งเข้า/ออกสด)
 //
-// socket แค่ "ส่งสัญญาณ" ไม่ได้ส่งข้อมูลจริง → ไม่มีข้อมูล sensitive รั่ว
+// ชื่อ/อีเมลของ presence ดึงจาก server (lookup จาก userId ใน JWT) → client ปลอมไม่ได้
 // =============================================================
 
 import { Server } from "socket.io"
@@ -16,11 +14,13 @@ import { env } from "@shared/config/env"
 import { logger } from "@shared/logging/logger"
 import { verifyAccessToken } from "@modules/auth/application/utils/jwt.util"
 import { prisma } from "@shared/database/prisma.client"
+import { PrismaUserRepository } from "@modules/auth/infrastructure/repositories/prisma-user.repository"
 import { PrismaBoardRepository } from "@modules/board/infrastructure/repositories/prisma-board.repository"
 import { PrismaMembershipRepository } from "@modules/organization/infrastructure/repositories/prisma-membership.repository"
 
 let io: Server | null = null
 
+const userRepo = new PrismaUserRepository(prisma)
 const boardRepo = new PrismaBoardRepository(prisma)
 const membershipRepo = new PrismaMembershipRepository(prisma)
 
@@ -35,19 +35,49 @@ async function canAccessBoard(userId: string, boardId: string): Promise<boolean>
   return membership !== null
 }
 
+// คำนวณ "ใครกำลังดูบอร์ดนี้" แล้ว broadcast (dedupe ตาม userId — เปิดหลายแท็บ = 1 คน)
+// excludeSocketId: ใช้ตอน disconnecting (socket ยังค้างในห้อง ต้องตัดตัวเองออก)
+async function broadcastPresence(boardId: string, excludeSocketId?: string) {
+  if (!io) return
+  const sockets = await io.in(`board:${boardId}`).fetchSockets()
+  const byUser = new Map<
+    string,
+    { userId: string; displayName: string | null; email: string }
+  >()
+  for (const s of sockets) {
+    if (s.id === excludeSocketId) continue
+    const d = s.data as {
+      userId?: string
+      displayName?: string | null
+      email?: string
+    }
+    if (d.userId) {
+      byUser.set(d.userId, {
+        userId: d.userId,
+        displayName: d.displayName ?? null,
+        email: d.email ?? "",
+      })
+    }
+  }
+  io.to(`board:${boardId}`).emit("board:presence", Array.from(byUser.values()))
+}
+
 export function initSocket(httpServer: HttpServer): void {
   const allowedOrigins = env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
   io = new Server(httpServer, {
     cors: { origin: allowedOrigins, credentials: true },
   })
 
-  // auth ทุก connection ด้วย access token (มาตรฐานเดียวกับ REST)
-  io.use((socket, next) => {
+  // auth ทุก connection + โหลดโปรไฟล์ไว้ใช้แสดง presence
+  io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth?.token as string | undefined
       if (!token) return next(new Error("unauthorized"))
       const payload = verifyAccessToken(token)
+      const user = await userRepo.findById(payload.userId)
       socket.data.userId = payload.userId
+      socket.data.displayName = user?.displayName ?? null
+      socket.data.email = user?.email ?? ""
       next()
     } catch {
       next(new Error("unauthorized"))
@@ -59,11 +89,23 @@ export function initSocket(httpServer: HttpServer): void {
       if (typeof boardId !== "string") return
       if (await canAccessBoard(socket.data.userId, boardId)) {
         socket.join(`board:${boardId}`)
+        await broadcastPresence(boardId)
       }
     })
 
-    socket.on("leave-board", (boardId: unknown) => {
-      if (typeof boardId === "string") socket.leave(`board:${boardId}`)
+    socket.on("leave-board", async (boardId: unknown) => {
+      if (typeof boardId !== "string") return
+      socket.leave(`board:${boardId}`)
+      await broadcastPresence(boardId)
+    })
+
+    // ก่อนหลุด socket ยังอยู่ในห้อง → update presence โดยตัดตัวเองออก
+    socket.on("disconnecting", () => {
+      for (const room of socket.rooms) {
+        if (room.startsWith("board:")) {
+          broadcastPresence(room.slice("board:".length), socket.id)
+        }
+      }
     })
   })
 
