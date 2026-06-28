@@ -7,6 +7,7 @@
 import { Router } from "express"
 import { prisma } from "@shared/database/prisma.client"
 import { validate } from "@shared/middlewares/validate.middleware"
+import { emitBoardChange } from "@shared/realtime/socket"
 import { authenticate } from "@modules/auth/presentation/middlewares/authenticate.middleware"
 import { PrismaMembershipRepository } from "@modules/organization/infrastructure/repositories/prisma-membership.repository"
 import { requireRole } from "@modules/organization/presentation/middlewares/rbac.middleware"
@@ -130,6 +131,24 @@ const router = Router({ mergeParams: true })
 
 // ทุก route ใต้บรรทัดนี้ต้อง login ก่อน
 router.use(authenticate)
+
+// real-time: หลัง mutation ของบอร์ดสำเร็จ → broadcast ให้คนอื่นในบอร์ด refetch
+// ใช้ res "finish" เพราะ req.params.boardId ถูก populate ครบหลัง route จับคู่แล้ว
+router.use((req, res, next) => {
+  res.on("finish", () => {
+    const boardId = req.params.boardId
+    const isMutation = ["POST", "PATCH", "DELETE"].includes(req.method)
+    if (
+      typeof boardId === "string" &&
+      isMutation &&
+      res.statusCode >= 200 &&
+      res.statusCode < 300
+    ) {
+      emitBoardChange(boardId)
+    }
+  })
+  next()
+})
 
 // --- Boards ---
 // สร้าง/แก้: ต้องเป็นสมาชิกที่ "แก้ไขได้" (ไม่รวม VIEWER ที่ดูได้อย่างเดียว)
