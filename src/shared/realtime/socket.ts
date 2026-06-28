@@ -85,6 +85,9 @@ export function initSocket(httpServer: HttpServer): void {
   })
 
   io.on("connection", (socket) => {
+    // ห้องส่วนตัวของ user → ใช้ push แจ้งเตือนถึงตัวบุคคล (ทุกแท็บของเขา)
+    socket.join(`user:${socket.data.userId}`)
+
     socket.on("join-board", async (boardId: unknown) => {
       if (typeof boardId !== "string") return
       if (await canAccessBoard(socket.data.userId, boardId)) {
@@ -115,4 +118,9 @@ export function initSocket(httpServer: HttpServer): void {
 // เรียกหลัง mutation ของบอร์ดสำเร็จ → บอกทุกคนในห้องให้ refetch
 export function emitBoardChange(boardId: string): void {
   io?.to(`board:${boardId}`).emit("board:change")
+}
+
+// push แจ้งเตือนถึง user คนหนึ่ง (ทุกแท็บที่เปิดอยู่) → กระดิ่งเด้งสด
+export function emitNotification(userId: string): void {
+  io?.to(`user:${userId}`).emit("notification:new")
 }
