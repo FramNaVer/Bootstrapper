@@ -3,6 +3,7 @@ import { InviteMemberUseCase } from "../../application/use-cases/invite-member.u
 import { ListInvitationsUseCase } from "../../application/use-cases/list-invitations.use-case"
 import { RevokeInvitationUseCase } from "../../application/use-cases/revoke-invitation.use-case"
 import { MembershipRole } from "../../domain/entities/membership.entity"
+import { emitNotification } from "@shared/realtime/socket"
 
 // คำสั่งฝั่ง org (เฉพาะ OWNER/ADMIN): เชิญ / ดูคำเชิญค้าง / ยกเลิก
 export class InvitationController {
@@ -21,6 +22,8 @@ export class InvitationController {
         email: req.body.email,
         role: req.body.role,
       })
+      // ถ้าผู้ถูกเชิญมีบัญชี → push กระดิ่งให้เขาสด (real-time)
+      if (result.notifyUserId) emitNotification(result.notifyUserId)
       res.status(201).json({
         success: true,
         message: "Invitation sent successfully",

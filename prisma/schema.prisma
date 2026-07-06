@@ -30,6 +30,21 @@ model User {
   memberships        Membership[]
   comments           Comment[]
   activities         ActivityLog[]
+  notifications      Notification[]
+}
+
+// Notification = แจ้งเตือนระดับผู้ใช้ (เริ่มที่คำเชิญ org — type ขยายได้)
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String // ผู้รับ
+  type      String // "ORG_INVITE" (เผื่อต่อ type อื่น เช่น CARD_ASSIGNED)
+  payload   Json? // ข้อมูลสำหรับ render + action (เช่น organizationName, token)
+  readAt    DateTime? // null = ยังไม่อ่าน
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model RefreshToken {

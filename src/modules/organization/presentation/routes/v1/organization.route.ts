@@ -10,6 +10,7 @@ import { prisma } from "@shared/database/prisma.client"
 import { validate } from "@shared/middlewares/validate.middleware"
 import { authenticate } from "@modules/auth/presentation/middlewares/authenticate.middleware"
 import { PrismaUserRepository } from "@modules/auth/infrastructure/repositories/prisma-user.repository"
+import { PrismaNotificationRepository } from "@modules/notification/infrastructure/repositories/prisma-notification.repository"
 import { PrismaOrganizationRepository } from "../../../infrastructure/repositories/prisma-organization.repository"
 import { PrismaMembershipRepository } from "../../../infrastructure/repositories/prisma-membership.repository"
 import { PrismaInvitationRepository } from "../../../infrastructure/repositories/prisma-invitation.repository"
@@ -50,9 +51,17 @@ const memberController = new MemberController(
 // invitation (org-scoped) — ใช้ UserRepository ของ auth module เช็คสมาชิกเดิม
 const userRepo = new PrismaUserRepository(prisma)
 const invitationRepo = new PrismaInvitationRepository(prisma)
+const notificationRepo = new PrismaNotificationRepository(prisma)
 const invitationEmail = new NodemailerInvitationEmailService()
 const invitationController = new InvitationController(
-  new InviteMemberUseCase(invitationRepo, membershipRepo, userRepo, invitationEmail),
+  new InviteMemberUseCase(
+    invitationRepo,
+    membershipRepo,
+    userRepo,
+    invitationEmail,
+    orgRepo,
+    notificationRepo
+  ),
   new ListInvitationsUseCase(invitationRepo),
   new RevokeInvitationUseCase(invitationRepo)
 )
