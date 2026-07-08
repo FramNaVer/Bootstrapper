@@ -15,10 +15,16 @@ export class NodemailerEmailService implements EmailService {
   constructor() {
     if (env.SMTP_HOST) {
       this.isDevTransport = false
+      // พอร์ต 465/2465 = TLS ตั้งแต่ต้น (implicit) | 587/2587 = STARTTLS (อัปเกรดหลังต่อ)
+      // 2465/2587 คือพอร์ตสำรองของ Resend — จำเป็นบน Railway ที่บล็อก 25/465/587 ขาออก
+      const implicitTls = env.SMTP_PORT === 465 || env.SMTP_PORT === 2465
       this.transporter = nodemailer.createTransport({
         host: env.SMTP_HOST,
         port: env.SMTP_PORT,
-        secure: env.SMTP_PORT === 465,
+        secure: implicitTls,
+        // โหมด STARTTLS: บังคับให้ต้องอัปเกรดเป็น TLS เสมอ — ห้ามส่ง credentials
+        // ผ่านการเชื่อมต่อเปล่าเด็ดขาดแม้ server จะยอม (กัน downgrade)
+        requireTLS: !implicitTls,
         auth: env.SMTP_USER
           ? { user: env.SMTP_USER, pass: env.SMTP_PASS }
           : undefined,
