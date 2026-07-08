@@ -2,13 +2,14 @@ import { InvitationEntity, InvitationStatus } from "../entities/invitation.entit
 import { MembershipRole } from "../entities/membership.entity"
 
 export interface InvitationRepository {
+  // คืน invitation ที่สร้าง — ผู้เรียกใช้ id ไปอ้างอิงต่อ (เช่นใส่ใน notification)
   create(data: {
     organizationId: string
     email: string
     role: MembershipRole
     tokenHash: string
     expiresAt: Date
-  }): Promise<void>
+  }): Promise<InvitationEntity>
 
   // หาคำเชิญที่ยังใช้ได้ (PENDING + ยังไม่หมดอายุ) จาก hash ของ token
   findValidByHash(tokenHash: string): Promise<InvitationEntity | null>

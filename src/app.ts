@@ -32,6 +32,7 @@ import authRouter from "@modules/auth/presentation/routes/v1/auth.route"
 import organizationRouter from "@modules/organization/presentation/routes/v1/organization.route"
 import invitationRouter from "@modules/organization/presentation/routes/v1/invitation.route"
 import boardRouter from "@modules/board/presentation/routes/v1/board.route"
+import notificationRouter from "@modules/notification/presentation/routes/v1/notification.route"
 
 // เริ่ม Sentry ให้เร็วที่สุด (ก่อนประกอบ route) — ถ้าไม่มี DSN จะ no-op
 initSentry()
@@ -90,6 +91,7 @@ app.use("/api/v1/auth", authRouter)
 app.use("/api/v1/organizations/:orgId/boards", boardRouter)
 app.use("/api/v1/organizations", organizationRouter)
 app.use("/api/v1/invitations", invitationRouter)
+app.use("/api/v1/notifications", notificationRouter)
 
 // 9. Global error handler — ต้องลงทะเบียนเป็นตัวสุดท้ายเสมอ
 app.use(errorHandler)

@@ -1,11 +1,9 @@
-import bcrypt from "bcrypt"
 import { UserRepository } from "../../domain/repositories/user.repository"
 import { VerificationTokenRepository } from "../../domain/repositories/verification-token.repository"
 import { TokenRepository } from "../../domain/repositories/token.repository"
 import { UnauthorizedError } from "@shared/errors/app.error"
 import { hashToken } from "../utils/token.util"
-
-const BCRYPT_ROUNDS = 12
+import { hashPassword } from "../utils/password.util"
 
 // รีเซ็ตรหัสผ่านจาก token + ปิดทุก session เก่า
 export class ResetPasswordUseCase {
@@ -24,7 +22,7 @@ export class ResetPasswordUseCase {
       throw new UnauthorizedError("Invalid or expired reset token")
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
+    const passwordHash = await hashPassword(newPassword)
     await this.userRepo.updatePassword(record.userId, passwordHash)
     await this.verificationTokenRepo.consume(record.id)
 

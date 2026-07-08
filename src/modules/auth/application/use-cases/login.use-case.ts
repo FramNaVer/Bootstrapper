@@ -1,4 +1,3 @@
-import bcrypt from "bcrypt";
 import { UserRepository } from "../../domain/repositories/user.repository";
 import { TokenRepository } from "../../domain/repositories/token.repository";
 import { UnauthorizedError } from "@shared/errors/app.error";
@@ -7,6 +6,7 @@ import {
     generateRefreshToken,
     getRefreshTokenExpiry,
 } from "../utils/jwt.util";
+import { verifyPassword } from "../utils/password.util";
 
 export class LoginUseCase {
     constructor(
@@ -27,7 +27,7 @@ export class LoginUseCase {
             throw new UnauthorizedError("Invalid email or password");
         }
 
-        const isPasswordValid = await bcrypt.compare(password, passwordHash);
+        const isPasswordValid = await verifyPassword(password, passwordHash);
         if (!isPasswordValid) {
             throw new UnauthorizedError("Invalid email or password");
         }

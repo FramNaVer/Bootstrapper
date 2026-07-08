@@ -5,12 +5,18 @@
 // ไฟล์นี้ทำหน้าที่เดียว: เปิด server ฟัง request จริง
 // =============================================================
 
+import { createServer } from "http"
 import { app } from "./src/app"
 import { env } from "@shared/config/env"
 import { logger } from "@shared/logging/logger"
+import { initSocket } from "@shared/realtime/socket"
 
 const PORT = env.PORT
 
-app.listen(PORT, () => {
+// ห่อ Express ด้วย http server เพื่อแชร์ port เดียวกับ Socket.io
+const httpServer = createServer(app)
+initSocket(httpServer)
+
+httpServer.listen(PORT, () => {
   logger.info(`Server is running at http://localhost:${PORT}`)
 })

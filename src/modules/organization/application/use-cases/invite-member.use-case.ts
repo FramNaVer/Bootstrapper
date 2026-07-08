@@ -1,8 +1,10 @@
 import { InvitationRepository } from "../../domain/repositories/invitation.repository"
 import { MembershipRepository } from "../../domain/repositories/membership.repository"
+import { OrganizationRepository } from "../../domain/repositories/organization.repository"
 import { MembershipRole } from "../../domain/entities/membership.entity"
 import { InvitationEmailService } from "../ports/invitation-email.service"
 import { UserRepository } from "@modules/auth/domain/repositories/user.repository"
+import { NotificationRepository } from "@modules/notification/domain/repositories/notification.repository"
 import { ForbiddenError, ConflictError } from "@shared/errors/app.error"
 import { generateRawToken, hashToken } from "@shared/utils/crypto-token.util"
 import { env } from "@shared/config/env"
@@ -14,7 +16,9 @@ export class InviteMemberUseCase {
     private invitationRepo: InvitationRepository,
     private membershipRepo: MembershipRepository,
     private userRepo: UserRepository,
-    private invitationEmail: InvitationEmailService
+    private invitationEmail: InvitationEmailService,
+    private orgRepo: OrganizationRepository,
+    private notificationRepo: NotificationRepository
   ) {}
 
   async execute(params: {
@@ -42,14 +46,14 @@ export class InviteMemberUseCase {
       }
     }
 
-    // ฆ่าคำเชิญ PENDING เดิมของ email นี้ก่อน (ให้มีคำเชิญที่ใช้ได้ทีละใบ)
+    // ลบคำเชิญ PENDING เดิมของ email นี้ก่อน (ให้มีคำเชิญที่ใช้ได้ทีละใบ)
     await this.invitationRepo.invalidatePendingForEmail(organizationId, email)
 
     const rawToken = generateRawToken()
     const expiresAt = new Date(
       Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000
     )
-    await this.invitationRepo.create({
+    const invitation = await this.invitationRepo.create({
       organizationId,
       email,
       role,
@@ -61,8 +65,26 @@ export class InviteMemberUseCase {
     const acceptUrl = `${env.FRONTEND_URL}/accept-invitation?token=${rawToken}`
     await this.invitationEmail.sendInvite(email, acceptUrl)
 
+    // ถ้าผู้ถูกเชิญ "มีบัญชีอยู่แล้ว" → สร้าง in-app notification + คืน userId ให้ controller push real-time
+    // (คนยังไม่มีบัญชีใช้ copy-link แทน)
+    let notifyUserId: string | null = null
+    if (existingUser) {
+      const org = await this.orgRepo.findById(organizationId)
+      await this.notificationRepo.create({
+        userId: existingUser.id,
+        type: "ORG_INVITE",
+        payload: {
+          organizationId,
+          organizationName: org?.name ?? "องค์กร",
+          // อ้างอิงด้วย id ไม่ใช่ raw token — DB ต้องไม่เก็บความลับแบบดิบ
+          // (กระดิ่งใช้ endpoint accept-by-id ที่พิสูจน์ตัวตนด้วย JWT + เช็ค email ตรง)
+          invitationId: invitation.id,
+        },
+      })
+      notifyUserId = existingUser.id
+    }
+
     // คืนลิงก์กลับไปด้วย → ฝั่งหน้าเว็บเอาไปให้ผู้เชิญ "คัดลอกลิงก์" แชร์เองได้
-    // (ใช้งานได้แม้ไม่ตั้ง SMTP) — ผู้เรียกเป็น OWNER/ADMIN ที่มีสิทธิ์เชิญอยู่แล้ว
-    return { acceptUrl, email }
+    return { acceptUrl, email, notifyUserId }
   }
 }
