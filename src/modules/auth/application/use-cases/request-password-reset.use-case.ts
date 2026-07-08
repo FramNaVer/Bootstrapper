@@ -33,7 +33,8 @@ export class RequestPasswordResetUseCase {
       expiresAt: getPasswordResetExpiry(),
     })
 
-    const resetUrl = `${env.APP_URL}/reset-password?token=${rawToken}`
+    // ลิงก์ชี้ไปหน้า frontend (SPA) — บั๊กแบบเดียวกับ verify email ที่เคยใช้ APP_URL
+    const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${rawToken}`
     await this.emailService.sendPasswordReset(user.email, resetUrl)
   }
 }
