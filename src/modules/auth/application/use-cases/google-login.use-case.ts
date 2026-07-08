@@ -53,6 +53,11 @@ export class GoogleLoginUseCase {
         provider: "GOOGLE",
         providerUserId: profile.googleId,
       })
+      // Google ยืนยัน email นี้แล้ว (guard ด้านบน) = พิสูจน์ความเป็นเจ้าของแล้ว
+      // → ปลดล็อกให้บัญชี local ที่ยังไม่ verify ด้วย ไม่งั้นจะเข้าได้แต่ทาง OAuth
+      if (!user.isEmailVerified) {
+        await this.userRepo.markEmailVerified(user.id)
+      }
     }
 
     const accessToken = generateAccessToken(user.id)

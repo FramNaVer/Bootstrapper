@@ -35,7 +35,10 @@ import { AuthController } from "../../controllers/auth.controller"
 import { authenticate } from "../../middlewares/authenticate.middleware"
 import { setupPassport, setupGithubPassport } from "../../../infrastructure/config/passport.config"
 import { validate } from "@shared/middlewares/validate.middleware"
-import { authRateLimit } from "@shared/middlewares/rate-limit.middleware"
+import {
+  authRateLimit,
+  refreshRateLimit,
+} from "@shared/middlewares/rate-limit.middleware"
 import {
   loginSchema,
   registerSchema,
@@ -111,11 +114,23 @@ router.post("/login", authRateLimit, validate(loginSchema), authController.login
 router.get("/me", authenticate, authController.me)
 
 // Token Management
-router.post("/refresh", validate(refreshTokenSchema), authController.refreshToken)
+// refresh ใช้ limiter แยก (หลวมกว่า login แต่เข้มกว่า general) — ดูเหตุผลใน rate-limit.middleware
+router.post(
+  "/refresh",
+  refreshRateLimit,
+  validate(refreshTokenSchema),
+  authController.refreshToken
+)
 router.post("/logout", validate(refreshTokenSchema), authController.logout)
 
 // Email Verification
-router.post("/verify-email", validate(verifyEmailSchema), authController.verifyEmail)
+// token เดาไม่ได้อยู่แล้ว (random 256-bit) แต่จำกัดไว้กันยิงรัวเปลือง DB query ฟรี
+router.post(
+  "/verify-email",
+  authRateLimit,
+  validate(verifyEmailSchema),
+  authController.verifyEmail
+)
 router.post(
   "/resend-verification",
   authRateLimit,

@@ -137,6 +137,34 @@ describe("LoginUseCase", () => {
     ).rejects.toThrow(GENERIC_ERROR)
     expect(mockTokenRepo.save).not.toHaveBeenCalled()
   })
+
+  it("should block an unverified email with EMAIL_NOT_VERIFIED (correct password)", async () => {
+    vi.mocked(mockUserRepo.findByEmail).mockResolvedValue({
+      ...mockUser,
+      isEmailVerified: false,
+    })
+    vi.mocked(mockUserRepo.findPasswordHashByUserId).mockResolvedValue(passwordHash)
+
+    await expect(
+      useCase.execute({ email: "test@example.com", password: "password123" })
+    ).rejects.toThrow("Please verify your email")
+    // ห้ามออก token ให้บัญชีที่ยังไม่ยืนยัน
+    expect(mockTokenRepo.save).not.toHaveBeenCalled()
+  })
+
+  it("should NOT reveal unverified status when the password is wrong", async () => {
+    // ลำดับการเช็คสำคัญ: ตรวจรหัสก่อน ค่อยตรวจ verify
+    // ถ้ากลับลำดับ คนไม่รู้รหัสจะเห็น "verify your email" = สืบได้ว่า email นี้มีบัญชี
+    vi.mocked(mockUserRepo.findByEmail).mockResolvedValue({
+      ...mockUser,
+      isEmailVerified: false,
+    })
+    vi.mocked(mockUserRepo.findPasswordHashByUserId).mockResolvedValue(passwordHash)
+
+    await expect(
+      useCase.execute({ email: "test@example.com", password: "wrong-password" })
+    ).rejects.toThrow(GENERIC_ERROR)
+  })
 })
 
 // ===================================================================

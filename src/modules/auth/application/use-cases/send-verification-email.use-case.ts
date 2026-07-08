@@ -27,8 +27,9 @@ export class SendVerificationEmailUseCase {
       expiresAt: getEmailVerificationExpiry(),
     })
 
-    // ลิงก์ชี้ไปหน้า frontend ที่จะเรียก POST /verify-email ให้
-    const verifyUrl = `${env.APP_URL}/verify-email?token=${rawToken}`
+    // ลิงก์ชี้ไปหน้า frontend (SPA) ที่จะเรียก POST /verify-email ให้
+    // ต้องเป็น FRONTEND_URL ไม่ใช่ APP_URL (ตัวหลังคือ backend — เปิดแล้วไม่มีหน้าอะไร)
+    const verifyUrl = `${env.FRONTEND_URL}/verify-email?token=${rawToken}`
     await this.emailService.sendEmailVerification(email, verifyUrl)
   }
 }

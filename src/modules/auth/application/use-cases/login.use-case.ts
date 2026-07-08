@@ -1,6 +1,6 @@
 import { UserRepository } from "../../domain/repositories/user.repository";
 import { TokenRepository } from "../../domain/repositories/token.repository";
-import { UnauthorizedError } from "@shared/errors/app.error";
+import { UnauthorizedError, ForbiddenError } from "@shared/errors/app.error";
 import {
     generateAccessToken,
     generateRefreshToken,
@@ -30,6 +30,16 @@ export class LoginUseCase {
         const isPasswordValid = await verifyPassword(password, passwordHash);
         if (!isPasswordValid) {
             throw new UnauthorizedError("Invalid email or password");
+        }
+
+        // บังคับยืนยันอีเมลก่อนใช้งาน — ต้องเช็ค "หลัง" ตรวจรหัสผ่านเท่านั้น
+        // ถ้าเช็คก่อน คนที่ไม่รู้รหัสจะใช้หน้า login สืบได้ว่า email นี้มีบัญชี
+        // (user enumeration) — เช็คหลัง = คนเห็นข้อความนี้คือเจ้าของบัญชีจริงแน่นอน
+        if (!user.isEmailVerified) {
+            throw new ForbiddenError(
+                "Please verify your email before signing in",
+                "EMAIL_NOT_VERIFIED"
+            );
         }
 
         const accessToken = generateAccessToken(user.id);

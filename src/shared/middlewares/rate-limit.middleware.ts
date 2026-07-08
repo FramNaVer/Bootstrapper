@@ -42,3 +42,15 @@ export const authRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 })
+
+// เฉพาะ /auth/refresh — แยกจาก authRateLimit เพราะธรรมชาติต่างกัน:
+// refresh เกิดเป็นประจำ (~ทุก 15 นาทีต่อ user) และหลายคนหลัง NAT เดียวกัน
+// (ห้องเรียน/ออฟฟิศ) แชร์ IP กัน → 20/15นาที จะทำให้ผู้ใช้จริงเตะกันเองตกระบบ
+// 120/15นาที รองรับ ~หลายสิบคนต่อ IP แต่ยังตัดการยิงรัวได้ (เข้มกว่า general 600)
+export const refreshRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isProd ? 120 : 100_000,
+  message: rateLimitResponse("AUTH_RATE_LIMIT_EXCEEDED"),
+  standardHeaders: true,
+  legacyHeaders: false,
+})
