@@ -38,9 +38,11 @@ export class UnauthorizedError extends AppError {
 }
 
 // 403 — login แล้ว แต่ไม่มีสิทธิ์ทำ action นั้น
+// code ปรับได้ (เช่น EMAIL_NOT_VERIFIED) เพื่อให้ frontend แยกเคสแล้วแสดง UI เฉพาะ
+// โดย status ยังเป็น 403 ตามความหมายเดิม
 export class ForbiddenError extends AppError {
-  constructor(message = "Forbidden") {
-    super(message, 403, "FORBIDDEN")
+  constructor(message = "Forbidden", code = "FORBIDDEN") {
+    super(message, 403, code)
   }
 }
 
