@@ -46,14 +46,14 @@ export class InviteMemberUseCase {
       }
     }
 
-    // ฆ่าคำเชิญ PENDING เดิมของ email นี้ก่อน (ให้มีคำเชิญที่ใช้ได้ทีละใบ)
+    // ลบคำเชิญ PENDING เดิมของ email นี้ก่อน (ให้มีคำเชิญที่ใช้ได้ทีละใบ)
     await this.invitationRepo.invalidatePendingForEmail(organizationId, email)
 
     const rawToken = generateRawToken()
     const expiresAt = new Date(
       Date.now() + INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000
     )
-    await this.invitationRepo.create({
+    const invitation = await this.invitationRepo.create({
       organizationId,
       email,
       role,
@@ -76,7 +76,9 @@ export class InviteMemberUseCase {
         payload: {
           organizationId,
           organizationName: org?.name ?? "องค์กร",
-          token: rawToken, // ใช้กดรับคำเชิญจากในกระดิ่งได้เลย
+          // อ้างอิงด้วย id ไม่ใช่ raw token — DB ต้องไม่เก็บความลับแบบดิบ
+          // (กระดิ่งใช้ endpoint accept-by-id ที่พิสูจน์ตัวตนด้วย JWT + เช็ค email ตรง)
+          invitationId: invitation.id,
         },
       })
       notifyUserId = existingUser.id

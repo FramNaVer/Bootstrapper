@@ -1,6 +1,6 @@
-import bcrypt from "bcrypt"
 import { UserRepository } from "../../domain/repositories/user.repository"
 import { ConflictError } from "@shared/errors/app.error"
+import { hashPassword } from "../utils/password.util"
 
 export class RegisterUseCase {
   constructor(private userRepo: UserRepository) {}
@@ -20,7 +20,7 @@ export class RegisterUseCase {
       throw new ConflictError("Email is already registered")
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await hashPassword(password)
     return this.userRepo.create({ email, displayName, passwordHash })
   }
 }

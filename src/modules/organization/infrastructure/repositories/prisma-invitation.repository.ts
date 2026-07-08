@@ -26,8 +26,8 @@ export class PrismaInvitationRepository implements InvitationRepository {
     role: MembershipRole
     tokenHash: string
     expiresAt: Date
-  }): Promise<void> {
-    await this.prisma.invitation.create({ data })
+  }): Promise<InvitationEntity> {
+    return this.prisma.invitation.create({ data, select: invitationSelect })
   }
 
   async findValidByHash(tokenHash: string): Promise<InvitationEntity | null> {
