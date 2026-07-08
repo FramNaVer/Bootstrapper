@@ -33,7 +33,8 @@ export class NodemailerEmailService implements EmailService {
     await this.send(
       to,
       "Verify your email",
-      `Welcome! Please verify your email by visiting:\n\n${verifyUrl}\n\nThis link expires in 24 hours.`
+      `Welcome! Please verify your email by visiting:\n\n${verifyUrl}\n\nThis link expires in 24 hours.`,
+      verifyUrl
     )
   }
 
@@ -41,15 +42,26 @@ export class NodemailerEmailService implements EmailService {
     await this.send(
       to,
       "Reset your password",
-      `You requested a password reset. Visit the link below to set a new password:\n\n${resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.`
+      `You requested a password reset. Visit the link below to set a new password:\n\n${resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.`,
+      resetUrl
     )
   }
 
-  private async send(to: string, subject: string, text: string): Promise<void> {
+  private async send(
+    to: string,
+    subject: string,
+    text: string,
+    devLink?: string
+  ): Promise<void> {
     await this.transporter.sendMail({ from: env.EMAIL_FROM, to, subject, text })
     if (this.isDevTransport) {
-      // dev: ไม่ได้ส่งจริง — log ออกมาเพื่อเอาลิงก์ไปทดสอบ
-      logger.info({ to, subject, text }, "[DEV] email (not actually sent)")
+      // dev: ไม่ได้ส่งจริง — log เพื่อเอาลิงก์ไปทดสอบ
+      logger.info({ to, subject }, "[DEV] email (not actually sent)")
+      // พิมพ์ลิงก์เป็นบรรทัดเดี่ยวล้วนๆ (ไม่ห่อใน JSON) — กัน copy ขาดตอน
+      // console ตัดบรรทัด ซึ่งทำให้ token หายไปบางตัวแล้ว verify ไม่ผ่าน
+      if (devLink) {
+        console.log(`\n[DEV] ${subject}:\n${devLink}\n`)
+      }
     }
   }
 }

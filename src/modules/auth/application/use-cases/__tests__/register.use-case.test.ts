@@ -188,6 +188,8 @@ describe("GoogleLoginUseCase", () => {
             provider: "GOOGLE",
             providerUserId: "google-123",
         })
+        // mockUser ยังไม่ verify + Google ยืนยัน email แล้ว → ต้องปลดล็อกบัญชี local ให้
+        expect(mockUserRepo.markEmailVerified).toHaveBeenCalledWith("user-1")
         expect(result.accessToken).toBeDefined()
     })
 
