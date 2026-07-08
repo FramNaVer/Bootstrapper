@@ -135,6 +135,81 @@ describe("GoogleLoginUseCase", () => {
         // ต้องบันทึก refresh token ลง DB ด้วย
         expect(mockTokenRepo.save).toHaveBeenCalledTimes(1)
     })
+
+    // ทดสอบว่า email ที่ Google ยังไม่ verified ต้องถูกปฏิเสธ (กัน account takeover)
+    // — guard เดียวกับฝั่ง GitHub: ถ้าไม่เช็ค คนอื่นตั้ง email ปลอมให้ตรงกับเหยื่อ
+    // แล้วถูก link เข้าบัญชีเดิมของเหยื่อได้
+    it("should throw UnauthorizedError if Google email is not verified", async () => {
+        const googleLoginUseCase = new GoogleLoginUseCase(mockUserRepo, mockTokenRepo)
+
+        await expect(
+            googleLoginUseCase.execute({
+                googleId: "google-123",
+                email: "victim@example.com",
+                displayName: "Attacker",
+                emailVerified: false,
+            })
+        ).rejects.toThrow("Google email is not verified")
+
+        // ต้องไม่แตะ DB เลยถ้า email ไม่ verified
+        expect(mockUserRepo.findByEmail).not.toHaveBeenCalled()
+        expect(mockUserRepo.create).not.toHaveBeenCalled()
+    })
+
+    // ทดสอบกรณี Google account ไม่ส่ง email มา (ปกติส่งเสมอ แต่กันไว้)
+    it("should throw UnauthorizedError if Google account has no email", async () => {
+        const googleLoginUseCase = new GoogleLoginUseCase(mockUserRepo, mockTokenRepo)
+
+        await expect(
+            googleLoginUseCase.execute({
+                googleId: "google-123",
+                email: null,
+                displayName: "No Email",
+                emailVerified: true,
+            })
+        ).rejects.toThrow("Google account must have an email address")
+    })
+
+    // ทดสอบว่า user เดิมที่มีอยู่แล้ว → link provider เข้าบัญชีเดิม ไม่สร้างซ้ำ
+    it("should link Google to an existing account instead of creating a new one", async () => {
+        vi.mocked(mockUserRepo.findByEmail).mockResolvedValue(mockUser)
+        vi.mocked(mockTokenRepo.save).mockResolvedValue(undefined)
+
+        const googleLoginUseCase = new GoogleLoginUseCase(mockUserRepo, mockTokenRepo)
+        const result = await googleLoginUseCase.execute({
+            googleId: "google-123",
+            email: "test@example.com",
+            displayName: "Test User",
+            emailVerified: true,
+        })
+
+        expect(mockUserRepo.create).not.toHaveBeenCalled()
+        expect(mockUserRepo.linkOAuthProvider).toHaveBeenCalledWith("user-1", {
+            provider: "GOOGLE",
+            providerUserId: "google-123",
+        })
+        expect(result.accessToken).toBeDefined()
+    })
+
+    // ทดสอบว่าบัญชีที่ถูกปิดใช้งาน (isActive=false) ห้าม login ผ่าน OAuth
+    it("should reject a deactivated account", async () => {
+        vi.mocked(mockUserRepo.findByEmail).mockResolvedValue({
+            ...mockUser,
+            isActive: false,
+        })
+
+        const googleLoginUseCase = new GoogleLoginUseCase(mockUserRepo, mockTokenRepo)
+
+        await expect(
+            googleLoginUseCase.execute({
+                googleId: "google-123",
+                email: "test@example.com",
+                displayName: "Test User",
+                emailVerified: true,
+            })
+        ).rejects.toThrow("Invalid credentials")
+        expect(mockUserRepo.linkOAuthProvider).not.toHaveBeenCalled()
+    })
 })
 
 // ===================================================================
