@@ -33,6 +33,7 @@ import organizationRouter from "@modules/organization/presentation/routes/v1/org
 import invitationRouter from "@modules/organization/presentation/routes/v1/invitation.route"
 import boardRouter from "@modules/board/presentation/routes/v1/board.route"
 import orgCardsRouter from "@modules/board/presentation/routes/v1/org-cards.route"
+import chatRouter from "@modules/chat/presentation/routes/v1/chat.route"
 import notificationRouter from "@modules/notification/presentation/routes/v1/notification.route"
 
 // เริ่ม Sentry ให้เร็วที่สุด (ก่อนประกอบ route) — ถ้าไม่มี DSN จะ no-op
@@ -91,6 +92,7 @@ app.use("/api/v1/auth", authRouter)
 // จะรับ request ของตัวเองทั้งหมด ไม่ตกไปให้ organizationRouter รัน middleware ซ้ำ
 app.use("/api/v1/organizations/:orgId/boards", boardRouter)
 app.use("/api/v1/organizations/:orgId/cards", orgCardsRouter)
+app.use("/api/v1/organizations/:orgId/messages", chatRouter)
 app.use("/api/v1/organizations", organizationRouter)
 app.use("/api/v1/invitations", invitationRouter)
 app.use("/api/v1/notifications", notificationRouter)
