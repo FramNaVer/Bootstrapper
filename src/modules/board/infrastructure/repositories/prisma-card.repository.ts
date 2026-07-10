@@ -2,6 +2,7 @@ import { PrismaClient } from "@generated/prisma"
 import { CardRepository } from "../../domain/repositories/card.repository"
 import {
   CardEntity,
+  CardWithBoard,
   CardWithRelations,
 } from "../../domain/entities/card.entity"
 
@@ -62,6 +63,30 @@ export class PrismaCardRepository implements CardRepository {
         displayName: a.membership.user.displayName,
         email: a.membership.user.email,
       })),
+    }))
+  }
+
+  async listDueInRange(
+    organizationId: string,
+    from: Date,
+    to: Date
+  ): Promise<CardWithBoard[]> {
+    const rows = await this.prisma.card.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        dueDate: { gte: from, lte: to },
+        // ลบบอร์ด (soft) จะติดธงที่บอร์ดตัวเดียว การ์ดข้างในยัง deletedAt: null
+        // → ต้องกรองผ่าน relation ไม่งั้นการ์ดจากบอร์ดที่ลบแล้วโผล่บนปฏิทิน
+        // (ลบ "ลิสต์" ไม่ต้องกรอง เพราะ softDeleteByList ติดธงการ์ดให้อยู่แล้ว)
+        board: { deletedAt: null },
+      },
+      orderBy: { dueDate: "asc" },
+      include: { board: { select: { name: true } } },
+    })
+    return rows.map(({ board, ...card }) => ({
+      ...card,
+      boardName: board.name,
     }))
   }
 

@@ -28,3 +28,9 @@ export interface CardWithRelations extends CardEntity {
   labels: CardLabelSummary[]
   assignees: CardAssigneeSummary[]
 }
+
+// การ์ดพร้อมชื่อบอร์ดต้นทาง — ใช้บนปฏิทินระดับ org
+// (รวมการ์ดจากหลายบอร์ด ต้องบอกได้ว่าใบไหนมาจากบอร์ดไหน)
+export interface CardWithBoard extends CardEntity {
+  boardName: string
+}

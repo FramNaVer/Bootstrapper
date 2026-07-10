@@ -263,6 +263,8 @@ model Card {
   @@index([listId, deletedAt])
   @@index([boardId])
   @@index([organizationId])
+  // ปฏิทินระดับ org: query ด้วย organizationId + ช่วง dueDate
+  @@index([organizationId, dueDate])
 }
 
 // ตารางเชื่อม Card ↔ Membership (ใครรับผิดชอบการ์ด)
