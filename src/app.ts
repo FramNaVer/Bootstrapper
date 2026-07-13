@@ -22,6 +22,7 @@ import { env } from "@shared/config/env"
 import express, { Request, Response } from "express"
 import helmet from "helmet"
 import cors from "cors"
+import cookieParser from "cookie-parser"
 import passport from "passport"
 import { correlationId } from "@shared/middlewares/correlation-id.middleware"
 import { httpLogger } from "@shared/middlewares/http-logger.middleware"
@@ -70,8 +71,10 @@ app.use(
 // 5. Rate limiting
 app.use(generalRateLimit)
 
-// 6. Parse JSON body
+// 6. Parse JSON body + cookies
 app.use(express.json())
+// cookie-parser: อ่าน Cookie header → req.cookies (ใช้กับ refresh token httpOnly)
+app.use(cookieParser())
 
 // 7. Passport
 app.use(passport.initialize())
