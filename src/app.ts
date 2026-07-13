@@ -22,6 +22,7 @@ import { env } from "@shared/config/env"
 import express, { Request, Response } from "express"
 import helmet from "helmet"
 import cors from "cors"
+import cookieParser from "cookie-parser"
 import passport from "passport"
 import { correlationId } from "@shared/middlewares/correlation-id.middleware"
 import { httpLogger } from "@shared/middlewares/http-logger.middleware"
@@ -32,6 +33,8 @@ import authRouter from "@modules/auth/presentation/routes/v1/auth.route"
 import organizationRouter from "@modules/organization/presentation/routes/v1/organization.route"
 import invitationRouter from "@modules/organization/presentation/routes/v1/invitation.route"
 import boardRouter from "@modules/board/presentation/routes/v1/board.route"
+import orgCardsRouter from "@modules/board/presentation/routes/v1/org-cards.route"
+import chatRouter from "@modules/chat/presentation/routes/v1/chat.route"
 import notificationRouter from "@modules/notification/presentation/routes/v1/notification.route"
 
 // เริ่ม Sentry ให้เร็วที่สุด (ก่อนประกอบ route) — ถ้าไม่มี DSN จะ no-op
@@ -68,8 +71,10 @@ app.use(
 // 5. Rate limiting
 app.use(generalRateLimit)
 
-// 6. Parse JSON body
+// 6. Parse JSON body + cookies
 app.use(express.json())
+// cookie-parser: อ่าน Cookie header → req.cookies (ใช้กับ refresh token httpOnly)
+app.use(cookieParser())
 
 // 7. Passport
 app.use(passport.initialize())
@@ -86,9 +91,11 @@ app.get("/health", (_req: Request, res: Response) => {
 })
 
 app.use("/api/v1/auth", authRouter)
-// board ต้องมาก่อน organizations: mount path เจาะจงกว่า (.../:orgId/boards)
-// จะรับ request ของ board เองทั้งหมด ไม่ตกไปให้ organizationRouter รัน middleware ซ้ำ
+// board/cards ต้องมาก่อน organizations: mount path เจาะจงกว่า (.../:orgId/...)
+// จะรับ request ของตัวเองทั้งหมด ไม่ตกไปให้ organizationRouter รัน middleware ซ้ำ
 app.use("/api/v1/organizations/:orgId/boards", boardRouter)
+app.use("/api/v1/organizations/:orgId/cards", orgCardsRouter)
+app.use("/api/v1/organizations/:orgId/messages", chatRouter)
 app.use("/api/v1/organizations", organizationRouter)
 app.use("/api/v1/invitations", invitationRouter)
 app.use("/api/v1/notifications", notificationRouter)

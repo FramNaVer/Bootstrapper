@@ -42,7 +42,6 @@ import {
 import {
   loginSchema,
   registerSchema,
-  refreshTokenSchema,
   emailSchema,
   verifyEmailSchema,
   resetPasswordSchema,
@@ -115,13 +114,10 @@ router.get("/me", authenticate, authController.me)
 
 // Token Management
 // refresh ใช้ limiter แยก (หลวมกว่า login แต่เข้มกว่า general) — ดูเหตุผลใน rate-limit.middleware
-router.post(
-  "/refresh",
-  refreshRateLimit,
-  validate(refreshTokenSchema),
-  authController.refreshToken
-)
-router.post("/logout", validate(refreshTokenSchema), authController.logout)
+// ไม่มี validate(body) แล้ว: token มาได้สองทาง (httpOnly cookie = ทางใหม่,
+// body = client รุ่นเดิมช่วงเปลี่ยนผ่าน) — controller เป็นคนเช็คว่ามีอย่างน้อยหนึ่งทาง
+router.post("/refresh", refreshRateLimit, authController.refreshToken)
+router.post("/logout", authController.logout)
 
 // Email Verification
 // token เดาไม่ได้อยู่แล้ว (random 256-bit) แต่จำกัดไว้กันยิงรัวเปลือง DB query ฟรี

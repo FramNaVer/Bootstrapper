@@ -27,9 +27,8 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 })
 
-export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, "Refresh token is required"),
-})
+// (refreshTokenSchema ถูกถอดออก — refresh/logout รับ token จาก httpOnly cookie
+//  เป็นหลัก body เป็นแค่ fallback ช่วงเปลี่ยนผ่าน controller เช็คเองว่ามีทางใดทางหนึ่ง)
 
 export const emailSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -51,7 +50,6 @@ export const resetPasswordSchema = z.object({
 // ไม่ต้องเขียน type ซ้ำ 2 ที่
 export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
-export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>
 export type EmailInput = z.infer<typeof emailSchema>
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>

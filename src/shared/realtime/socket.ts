@@ -102,6 +102,21 @@ export function initSocket(httpServer: HttpServer): void {
       await broadcastPresence(boardId)
     })
 
+    // ห้องแชทของ org — เข้าได้เมื่อเป็นสมาชิกเท่านั้น (กัน join มั่วเหมือน board)
+    socket.on("join-org", async (orgId: unknown) => {
+      if (typeof orgId !== "string") return
+      const membership = await membershipRepo.findByUserAndOrg(
+        socket.data.userId,
+        orgId
+      )
+      if (membership) socket.join(`org:${orgId}`)
+    })
+
+    socket.on("leave-org", (orgId: unknown) => {
+      if (typeof orgId !== "string") return
+      socket.leave(`org:${orgId}`)
+    })
+
     // ก่อนหลุด socket ยังอยู่ในห้อง → update presence โดยตัดตัวเองออก
     socket.on("disconnecting", () => {
       for (const room of socket.rooms) {
@@ -123,4 +138,10 @@ export function emitBoardChange(boardId: string): void {
 // push แจ้งเตือนถึง user คนหนึ่ง (ทุกแท็บที่เปิดอยู่) → กระดิ่งเด้งสด
 export function emitNotification(userId: string): void {
   io?.to(`user:${userId}`).emit("notification:new")
+}
+
+// แชท: push "ตัวข้อความจริง" เข้าห้อง org (ไม่ใช่สัญญาณ refetch แบบ board:change)
+// — client เอา message ไป append ต่อท้ายได้ทันที ไม่ต้องยิง API ซ้ำ
+export function emitChatMessage(orgId: string, message: unknown): void {
+  io?.to(`org:${orgId}`).emit("chat:new", message)
 }

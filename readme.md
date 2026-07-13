@@ -1,141 +1,171 @@
-# Bootstrapper — Multi-Tenant SaaS API
+# Bootstrapper — Multi-Tenant Kanban SaaS (API)
 
-A production-minded backend built to enterprise standards: **Clean Architecture**, strong typing, secure authentication, and a clear path toward a full multi-tenant SaaS platform.
+A production-deployed, multi-tenant team task manager (think minimal Trello) built with **Clean Architecture**, hardened authentication, and real-time collaboration.
 
-> This project starts from a hardened authentication core and grows — phase by phase — into a team-based project/task management SaaS (think a minimal Linear/Trello backend). It is built as a learning + portfolio project, with real deployment in mind.
+**Live demo:** [board.tanadon-i.com](https://board.tanadon-i.com) · API at `api.tanadon-i.com`
+**Frontend repo:** [Bootstrapper-Client](https://github.com/FramNaVer/Bootstrapper-Client) (React 18 + Vite)
+
+> Built as a learning + portfolio project — but deployed and used for real classroom teamwork. Every architectural decision is documented in [docs/adr](docs/adr).
 
 ---
 
-## Tech Stack
+## What it does
+
+- **Organizations (tenants)** — create orgs, invite members by email or link, RBAC roles (`OWNER · ADMIN · MEMBER · VIEWER`), creator protection
+- **Kanban boards** — lists & cards with fractional-position drag-and-drop, labels, assignees, comments, due dates, per-board activity log
+- **Real-time** — live board updates, presence ("who's viewing"), instant notifications, org chat — all over Socket.io with per-room authorization
+- **Org calendar** — cross-board due-date calendar per organization
+- **Org chat** — one channel per org, cursor-paginated history + socket data push
+- **Auth** — email/password with enforced email verification, password reset, Google & GitHub OAuth with account linking
+- **Housekeeping** — soft delete with 30-day retention, nightly purge cron
+
+## Tech stack
 
 | Concern | Choice |
 |--------|--------|
 | Language | TypeScript (strict) |
-| Runtime / Framework | Node.js + Express 5 |
+| Runtime / framework | Node.js + Express 5 |
 | Database | PostgreSQL (Neon) via Prisma 7 |
-| Auth | JWT (access + rotating refresh) + Passport OAuth (Google, GitHub) |
-| Validation | Zod (request + environment) |
-| Security | Helmet, CORS, rate limiting, bcrypt |
-| Logging | Pino (structured) + correlation IDs |
-| Testing | Vitest |
+| Real-time | Socket.io (JWT-authenticated, room-based) |
+| Auth | JWT (access + rotating refresh) · Passport OAuth (Google, GitHub) |
+| Validation | Zod — requests (body & query) and environment |
+| Email | Nodemailer → Resend SMTP (port 2587 — Railway blocks 25/465/587) |
+| Jobs | node-cron (nightly purge) |
+| Observability | Pino structured logs + correlation IDs · Sentry |
+| Testing | Vitest — 100+ unit tests + supertest integration suite |
+| Deploy | Docker (multi-stage, non-root) on Railway — see [DEPLOY.md](DEPLOY.md) |
 
----
+## System overview
+
+```mermaid
+flowchart LR
+    subgraph Client["Vercel — board.tanadon-i.com"]
+        SPA["React SPA<br/>TanStack Query + Socket.io client"]
+    end
+    subgraph API["Railway — api.tanadon-i.com"]
+        EX["Express 5 REST API<br/>/api/v1"]
+        WS["Socket.io<br/>rooms: user / board / org"]
+        CRON["node-cron<br/>nightly purge"]
+    end
+    DB[("Neon PostgreSQL<br/>via Prisma")]
+    RESEND["Resend SMTP"]
+    OAUTH["Google / GitHub OAuth"]
+    SENTRY["Sentry"]
+
+    SPA -- "HTTPS (JWT bearer)" --> EX
+    SPA <-- "WSS (JWT handshake)" --> WS
+    EX --> DB
+    CRON --> DB
+    EX -- "verification / reset / invite mail" --> RESEND
+    EX <--> OAUTH
+    EX --> SENTRY
+```
 
 ## Architecture
 
-The codebase follows **Clean Architecture** with strict dependency direction — inner layers never depend on outer layers.
+**Module-based Clean Architecture** — each module owns its four layers; dependencies always point inward. Modules never import each other's internals (only shared contracts).
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Presentation   routes · controllers · middlewares · validators│  HTTP ↔ use case
-├─────────────────────────────────────────────────────────────┤
-│  Application    use cases · ports (interfaces) · utils        │  business workflows
-├─────────────────────────────────────────────────────────────┤
-│  Domain         entities · repository interfaces · errors     │  core rules (no deps)
-├─────────────────────────────────────────────────────────────┤
-│  Infrastructure prisma · repositories · config · logging      │  concrete adapters
-└─────────────────────────────────────────────────────────────┘
+src/
+├── modules/
+│   ├── auth/           # register, login, refresh rotation, OAuth, verify, reset
+│   ├── organization/   # orgs, memberships, invitations, RBAC middleware
+│   ├── board/          # boards, lists, cards, labels, assignees, comments, activity
+│   ├── chat/           # org chat (messages, cursor pagination)
+│   └── notification/   # user notifications (invite → bell)
+│   └── <module>/
+│       ├── domain/          # entities + repository interfaces (no dependencies)
+│       ├── application/     # use cases (business rules), pure & unit-tested
+│       ├── infrastructure/  # Prisma repositories, email service
+│       └── presentation/    # routes (composition root), controllers, validators
+└── shared/             # env config, prisma client, errors, middlewares,
+                        # realtime (socket), jobs (purge cron), logging
 ```
 
 **Key principles**
 
-- **Dependency Inversion** — use cases depend on repository *interfaces* (`domain/repositories`); Prisma implementations live in `infrastructure` and are wired only at the composition root.
-- **Composition Root** — all concrete classes are instantiated and injected in one place (`presentation/routes/v1/auth.route.ts`). The rest of the code knows only interfaces.
-- **Fail fast on config** — environment variables are validated once at boot with Zod (`infrastructure/config/env.ts`). Missing config crashes the app immediately with a clear message.
-- **API versioning** — routes are namespaced under `/api/v1`, leaving room for `/v2` without breaking clients.
+- **Dependency inversion** — use cases depend on repository *interfaces*; Prisma implementations are injected at the composition root (each module's route file).
+- **Multi-tenancy** — shared schema with an `organizationId` discriminator on every tenant-scoped table. A single RBAC middleware (`requireRole`) resolves the caller's membership per request; every tenant query filters by `organizationId`.
+- **Fail fast on config** — environment is validated once at boot with Zod; missing config crashes immediately with a clear message.
+- **Expand–contract migrations** — dev and prod share one database, so every migration must be additive (see [ADR-0003](docs/adr/0003-shared-database-expand-contract.md)).
 
-### Project structure
+## Security
 
-```
-src/
-├── domain/                 # entities, repository interfaces, domain errors
-├── application/            # use cases (business logic), utils (jwt), ports
-├── infrastructure/         # prisma client, repositories, config, logging
-└── presentation/           # routes, controllers, middlewares, validators
-main.ts                     # app entry point + middleware pipeline
-prisma/schema.prisma        # data model
-```
+- **Hashed tokens at rest** — refresh / verification / reset / invitation tokens are stored as **SHA-256 hashes**, applied at the repository boundary so no code path can forget ([ADR-0002](docs/adr/0002-token-storage-and-rotation.md))
+- **Refresh rotation + reuse detection** — every refresh rotates the pair; reuse of a revoked token revokes *all* of the user's sessions (theft signal)
+- **Email verification enforced at login** — with identical error ordering to prevent user enumeration (verified check runs *after* password verification)
+- **bcrypt cost 12** for passwords — single source of truth in one util
+- **Tiered rate limiting** — login 20 / refresh 120 / general 600 per 15 min (tuned for classroom NAT sharing)
+- **OAuth hardening** — per-environment OAuth apps, provider-verified emails mark accounts verified, account linking by verified email
+- **Socket authorization** — JWT on handshake; board/org room joins re-check membership server-side
+- **Headers** — Helmet on the API; strict CSP, `frame-ancestors 'none'`, and friends on the frontend (see client repo's `vercel.json`)
 
----
+## Real-time design
 
-## Security Highlights
+| Event | Payload | Pattern | Why |
+|-------|---------|---------|-----|
+| `board:change` | none | **signal → refetch** | board state is complex; clients re-pull truth via TanStack Query |
+| `board:presence` | user list | server-computed | names resolved from JWT server-side — not spoofable |
+| `notification:new` | none | signal → refetch | bell badge is cheap to refetch |
+| `chat:new` | full message | **data push** | chat needs instant append; refetching history per message is wasteful |
 
-- **Refresh token rotation + reuse detection** — every refresh issues a new token pair and revokes the old one. A revoked token being reused triggers a full revoke of the user's sessions (theft signal).
-- **Account-takeover protection on OAuth** — provider emails are only trusted when verified; inactive users cannot authenticate via any path.
-- **No secrets in the repo** — real credentials live outside git; see `.env.example` for required variables.
-- **Defense in depth** — Helmet headers, CORS allow-list, per-route rate limiting, and `trust proxy` enabled only in production.
+Two patterns on purpose — *invalidate over the wire* when state is complex, *data push* when latency matters and the payload is self-contained ([ADR-0005](docs/adr/0005-realtime-strategy.md)).
 
----
-
-## Roadmap — from Auth Core to Multi-Tenant SaaS
-
-The product is a **team project/task manager**: organizations invite members, create projects, and collaborate on tasks — with each organization's data fully isolated (tenant isolation) and role-based permissions (RBAC).
-
-| Phase | Scope | Enterprise skills demonstrated |
-|------|-------|-------------------------------|
-| **0** ✅ | Hardened auth core (JWT rotation, OAuth, rate limit, env validation) | Clean Architecture, secure auth |
-| **1** 🚧 | Email verification + password reset | Background jobs, email service, token flows |
-| **2** | Organizations · Memberships · Invitations | Multi-tenancy, **RBAC / authorization** |
-| **3** | Projects · Tasks (core domain) | Pagination, filtering, soft delete, DB transactions |
-| **4** | Real-time task updates | WebSocket / SSE, event-driven design |
-| **5** | Observability · API docs · CI/CD · Deploy | Sentry, health checks, OpenAPI, Docker, integration tests |
-| **6** *(optional)* | Per-organization billing | Stripe, webhooks, idempotency, plan limits |
-
-### Multi-tenancy strategy
-
-Shared database, shared schema, with an `organizationId` discriminator on every tenant-scoped table. A single authorization middleware resolves the caller's membership and role for the requested organization, and every tenant-scoped query is filtered by `organizationId` — preventing cross-tenant data access.
-
-### Planned domain model
-
-```
-User ── Membership ──► Organization (tenant)
-                          ├─ Invitation
-                          └─ Project
-                               └─ Task ── Comment / ActivityLog
-```
-
-Roles per organization: `OWNER` · `ADMIN` · `MEMBER` · `VIEWER`.
-
----
-
-## Getting Started
+## Testing
 
 ```bash
-# 1. Install dependencies
-npm install
-
-# 2. Configure environment
-cp .env.example .env        # then fill in the values
-
-# 3. Apply database schema
-npx prisma migrate dev
-
-# 4. Run in development
-npm run dev
+npm test                  # unit tests — use cases with mocked repositories (fast, no DB)
+npm run test:integration  # supertest against the real app + real database
 ```
 
-### Useful scripts
+- **Unit (100+)** — business rules: rotation & reuse detection, RBAC edge cases (creator protection, last-owner guard), enumeration-resistant error ordering, pagination cursor logic
+- **Integration (24+)** — HTTP through real middleware + Prisma: RBAC per route, soft-delete filtering, cursor pagination walking pages without gaps/repeats
+
+## Getting started
+
+```bash
+npm install
+cp .env.example .env      # fill in values (see comments in the file)
+npx prisma migrate dev    # apply schema
+npm run dev               # http://localhost:3000
+```
+
+Without SMTP config, dev mode logs email links to the console instead of sending.
+
+### Demo data
+
+```bash
+npx ts-node -r tsconfig-paths/register scripts/seed-demo.ts <password>
+```
+
+Creates (idempotently) a verified demo user with a sample org, boards, cards with due dates, and chat messages — handy for reviewers.
+
+### Scripts
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start the dev server (ts-node) |
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm start` | Run the compiled build |
-| `npm test` | Run the test suite (Vitest) |
-| `npm run test:coverage` | Run tests with coverage |
+| `npm run dev` | Dev server (ts-node) |
+| `npm run build` / `npm start` | Compile & run production build |
+| `npm test` / `npm run test:watch` | Unit tests |
+| `npm run test:integration` | Integration tests (needs `DATABASE_URL`) |
 
-### Core API endpoints (v1)
+## API surface (v1)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/v1/auth/register` | Create an account |
-| `POST` | `/api/v1/auth/login` | Email + password login |
-| `POST` | `/api/v1/auth/refresh` | Rotate tokens |
-| `POST` | `/api/v1/auth/logout` | Revoke a refresh token |
-| `GET`  | `/api/v1/auth/google` | Google OAuth |
-| `GET`  | `/api/v1/auth/github` | GitHub OAuth |
+All routes live under `/api/v1`. Highlights:
 
----
+| Area | Routes |
+|------|--------|
+| Auth | `POST /auth/register · /login · /refresh · /logout · /verify-email · /forgot-password · /reset-password` · `GET /auth/google · /auth/github` |
+| Orgs | `GET/POST /organizations` · members `GET/PATCH/DELETE .../members/:userId` · invitations CRUD + `POST /invitations/:id/accept` |
+| Boards | `.../boards` · lists · cards (+ `PATCH .../cards/:id/move`) · labels · assignees · comments · activities |
+| Calendar | `GET .../cards?dueFrom&dueTo` — due cards across all boards |
+| Chat | `GET .../messages?cursor&limit` · `POST .../messages` |
+| Notifications | `GET /notifications` · mark read |
+
+## Project docs
+
+- [DEPLOY.md](DEPLOY.md) — Docker image, Railway, migrations strategy
+- [docs/adr](docs/adr) — architecture decision records (why, not just what)
 
 ## License
 

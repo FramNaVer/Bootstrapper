@@ -30,3 +30,26 @@ export function validate(schema: ZodTypeAny) {
     next()
   }
 }
+
+// เวอร์ชันสำหรับ query string (?dueFrom=...&dueTo=...)
+//
+// ต่างจาก body สองจุด:
+// 1. query ทุกตัวเป็น string เสมอ → schema ต้องใช้ z.coerce.* แปลงชนิดเอง
+// 2. Express 5 ทำ req.query เป็น getter (เขียนทับแบบ req.body ไม่ได้)
+//    → เก็บผลที่ validate แล้วไว้ที่ res.locals.query ให้ controller หยิบใช้แทน
+export function validateQuery(schema: ZodTypeAny) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const result = schema.safeParse(req.query)
+
+    if (!result.success) {
+      const details = result.error.issues.map((issue) => ({
+        field: issue.path.join("."),
+        message: issue.message,
+      }))
+      return next(new ValidationError(details))
+    }
+
+    res.locals.query = result.data
+    next()
+  }
+}

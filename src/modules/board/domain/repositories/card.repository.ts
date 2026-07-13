@@ -1,4 +1,8 @@
-import { CardEntity, CardWithRelations } from "../entities/card.entity"
+import {
+  CardEntity,
+  CardWithBoard,
+  CardWithRelations,
+} from "../entities/card.entity"
 
 export interface CardRepository {
   create(data: {
@@ -14,6 +18,13 @@ export interface CardRepository {
 
   // การ์ดทั้งหมดของ board พร้อม label/assignee (สำหรับ board view — client จัดกลุ่มตาม listId เอง)
   listByBoard(boardId: string): Promise<CardWithRelations[]>
+
+  // การ์ดที่มีกำหนดส่งในช่วง [from, to] จากทุกบอร์ดของ org (สำหรับปฏิทินรวม)
+  listDueInRange(
+    organizationId: string,
+    from: Date,
+    to: Date
+  ): Promise<CardWithBoard[]>
 
   // position มากสุดใน list หนึ่ง — ใช้คำนวณตำแหน่งการ์ดใหม่ (ต่อท้าย list)
   getMaxPosition(listId: string): Promise<number | null>

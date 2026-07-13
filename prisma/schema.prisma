@@ -31,6 +31,7 @@ model User {
   comments           Comment[]
   activities         ActivityLog[]
   notifications      Notification[]
+  messages           Message[]
 }
 
 // Notification = แจ้งเตือนระดับผู้ใช้ (เริ่มที่คำเชิญ org — type ขยายได้)
@@ -141,6 +142,7 @@ model Organization {
   labels     Label[]
   comments   Comment[]
   activities ActivityLog[]
+  messages   Message[]
 }
 
 // ตารางเชื่อม user ↔ organization พร้อม role (หัวใจของ multi-tenant + RBAC)
@@ -263,6 +265,8 @@ model Card {
   @@index([listId, deletedAt])
   @@index([boardId])
   @@index([organizationId])
+  // ปฏิทินระดับ org: query ด้วย organizationId + ช่วง dueDate
+  @@index([organizationId, dueDate])
 }
 
 // ตารางเชื่อม Card ↔ Membership (ใครรับผิดชอบการ์ด)
@@ -353,4 +357,20 @@ enum ActionType {
   LIST_CREATED
   LIST_RENAMED
   LIST_DELETED
+}
+
+// ข้อความแชทของ org — หนึ่ง org มีห้องแชทเดียว (Phase 2.3 chat v1)
+// ไม่มี updatedAt/deletedAt: v1 ยังแก้/ลบข้อความไม่ได้ (ค่อย expand ทีหลังถ้าทำ)
+model Message {
+  id             String   @id @default(uuid())
+  organizationId String
+  authorId       String
+  body           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author       User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  // query หลักของแชท: ประวัติของ org เรียงใหม่→เก่า → index คู่นี้ตรงเป๊ะ
+  @@index([organizationId, createdAt])
 }
