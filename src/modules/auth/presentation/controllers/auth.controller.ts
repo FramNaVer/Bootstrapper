@@ -22,6 +22,12 @@ import { ResetPasswordUseCase } from "../../application/use-cases/reset-password
 import { GetMeUseCase } from "../../application/use-cases/get-me.use-case"
 import { logger } from "@shared/logging/logger"
 import { env } from "@shared/config/env"
+import { UnauthorizedError } from "@shared/errors/app.error"
+import {
+  REFRESH_COOKIE,
+  setRefreshCookie,
+  clearRefreshCookie,
+} from "../utils/refresh-cookie.util"
 
 export class AuthController {
   constructor(
@@ -136,6 +142,10 @@ export class AuthController {
     try {
       const { email, password } = req.body
       const result = await this.loginUseCase.execute({ email, password })
+      // ทางใหม่: refresh token ลง httpOnly cookie (JS อ่านไม่ได้ → กัน XSS ขโมย)
+      setRefreshCookie(res, result.refreshToken)
+      // ช่วงเปลี่ยนผ่าน: body ยังมี refreshToken ให้ client รุ่นเดิมที่ deploy อยู่
+      // (ตัดออกในขั้น contract หลัง frontend ใหม่นิ่งแล้ว)
       res.status(200).json({
         success: true,
         message: "Login successful",
@@ -164,21 +174,33 @@ export class AuthController {
 
   // หลัง OAuth สำเร็จ Passport ใส่ token ไว้ที่ req.user
   // SPA รับ JSON จาก redirect ตรงๆ ไม่ได้ → เรา redirect กลับ frontend
-  // แนบ token ไว้ใน "hash fragment" (#...) เพราะ fragment ไม่ถูกส่งไป server
-  // จึงไม่โผล่ใน access log / Referer header (ปลอดภัยกว่าใส่ใน query string)
+  //
+  // ทางใหม่: refresh token ถูกฝากเป็น httpOnly cookie ตั้งแต่ redirect นี้เลย
+  // (redirect response ก็ set cookie ได้) — client ใหม่แค่เรียก /refresh ต่อ
+  // ช่วงเปลี่ยนผ่านยังแนบ token ใน hash fragment ให้ client รุ่นเดิมด้วย
+  // (fragment ไม่ถูกส่งไป server จึงไม่โผล่ใน log — และจะตัดทิ้งในขั้น contract
+  //  หลังจากนั้น URL callback จะสะอาด ไม่มี token ให้เห็นเลย)
   private redirectToFrontendWithTokens(req: Request, res: Response) {
     const { accessToken, refreshToken } = req.user as {
       accessToken: string
       refreshToken: string
     }
+    setRefreshCookie(res, refreshToken)
     const params = new URLSearchParams({ accessToken, refreshToken })
     res.redirect(`${env.FRONTEND_URL}/auth/callback#${params.toString()}`)
   }
 
   refreshToken = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { refreshToken } = req.body
+      // ทางใหม่ (cookie) มาก่อน ทางเก่า (body — client รุ่นเดิม) เป็น fallback
+      const refreshToken: string | undefined =
+        req.cookies?.[REFRESH_COOKIE] ?? req.body?.refreshToken
+      if (!refreshToken) {
+        throw new UnauthorizedError("Refresh token is required")
+      }
       const result = await this.refreshTokenUseCase.execute(refreshToken)
+      // rotation: cookie ใบใหม่ทับใบเก่าในทุกครั้งที่ refresh สำเร็จ
+      setRefreshCookie(res, result.refreshToken)
       res.status(200).json({
         success: true,
         message: "Token refreshed successfully",
@@ -191,8 +213,14 @@ export class AuthController {
 
   logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { refreshToken } = req.body
-      await this.logoutUseCase.execute(refreshToken)
+      const refreshToken: string | undefined =
+        req.cookies?.[REFRESH_COOKIE] ?? req.body?.refreshToken
+      // logout เป็น idempotent: มี token ก็ revoke, ไม่มีก็แค่เคลียร์ cookie
+      // (ไม่ 401 — ผู้ใช้กด logout ซ้ำ/พก cookie หมดอายุ ก็ควรจบสวยเสมอ)
+      if (refreshToken) {
+        await this.logoutUseCase.execute(refreshToken)
+      }
+      clearRefreshCookie(res)
       res.status(200).json({
         success: true,
         message: "Logged out successfully",
