@@ -1,7 +1,9 @@
 import { z } from "zod"
 
 export const inviteMemberSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  // trim+lowercase ให้ตรงกับ email ของ user ใน DB (เก็บ lowercase เสมอ) —
+  // ไม่งั้นผู้เชิญพิมพ์ "Foo@x.com" แล้วเจ้าของบัญชี foo@x.com จะรับคำเชิญไม่ได้
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
   role: z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER"], {
     message: "Role must be one of OWNER, ADMIN, MEMBER, VIEWER",
   }),

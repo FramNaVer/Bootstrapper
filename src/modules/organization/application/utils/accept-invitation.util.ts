@@ -7,6 +7,7 @@ import {
   ForbiddenError,
   ConflictError,
 } from "@shared/errors/app.error"
+import { normalizeEmail } from "@shared/utils/email.util"
 
 // =============================================================
 // แกนกลางของการ "รับคำเชิญ" — ใช้ร่วม 2 เส้นทาง
@@ -33,7 +34,10 @@ export async function joinOrganizationFromInvitation(
 
   // คำเชิญผูกกับ email — คนรับต้องเป็นเจ้าของ email นั้น
   // (กันคนส่งต่อลิงก์/รู้ id คำเชิญ แล้วให้บัญชีอื่นมารับแทน)
-  if (user.email !== invitation.email) {
+  // เทียบแบบ normalize ทั้งสองฝั่ง: ทางเข้าใหม่ normalize หมดแล้วก็จริง
+  // แต่คำเชิญ/บัญชีที่เกิดก่อนกฎนี้อาจยังมี case ปนอยู่ — เทียบตรงๆ จะปฏิเสธ
+  // เจ้าของตัวจริง (กฎ "ใครคือเจ้าของ email" ไม่ขึ้นกับ case โดยความหมายอยู่แล้ว)
+  if (normalizeEmail(user.email) !== normalizeEmail(invitation.email)) {
     throw new ForbiddenError(
       "This invitation was sent to a different email address"
     )

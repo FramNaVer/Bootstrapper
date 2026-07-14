@@ -9,13 +9,16 @@
 
 import { z } from "zod"
 
+// email ทุก schema: .trim().toLowerCase() ก่อนเช็ครูปแบบ — DB เก็บ email
+// เป็น lowercase เสมอ (ดูเหตุผลใน @shared/utils/email.util.ts) ถ้าไม่แปลงที่นี่
+// "Foo@x.com" จะสมัครซ้ำกับ "foo@x.com" ได้ และ login/รับคำเชิญด้วย case อื่นจะล้ม
 export const registerSchema = z.object({
   displayName: z
     .string()
     .min(2, "Display name must be at least 2 characters")
     .max(50, "Display name must not exceed 50 characters")
     .optional(),
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -23,7 +26,7 @@ export const registerSchema = z.object({
 })
 
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
 })
 
@@ -31,7 +34,7 @@ export const loginSchema = z.object({
 //  เป็นหลัก body เป็นแค่ fallback ช่วงเปลี่ยนผ่าน controller เช็คเองว่ามีทางใดทางหนึ่ง)
 
 export const emailSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().trim().toLowerCase().email("Invalid email address"),
 })
 
 export const verifyEmailSchema = z.object({
