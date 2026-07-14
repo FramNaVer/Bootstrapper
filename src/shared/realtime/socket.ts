@@ -130,6 +130,52 @@ export function initSocket(httpServer: HttpServer): void {
   logger.info("Socket.io initialized")
 }
 
+// เตะ socket ทุกตัวของ user ออกจากห้องของ org — เรียกหลัง "ลบสมาชิก" สำเร็จ
+//
+// ทำไมต้องมี: REST ถูกตัดสิทธิ์ทันทีที่ membership หาย (RBAC เช็คทุก request)
+// แต่ห้อง socket เช็คสิทธิ์แค่ "ตอน join" — ถ้าไม่เตะ คนที่เพิ่งถูกลบจะยังรับ
+// ข้อความแชท/presence/สัญญาณบอร์ดของ org นี้สดๆ ต่อไปจนกว่าจะปิดแท็บเอง
+//
+// best-effort โดยเจตนา: การลบสมาชิก commit ไปแล้ว ความล้มเหลวตรงนี้
+// ห้ามทำให้ request ลบล้มตาม — ผู้เรียกควร catch + log เอง
+export async function kickUserFromOrgRooms(
+  userId: string,
+  orgId: string
+): Promise<void> {
+  if (!io) return
+  // ห้อง user:{id} มีทุก socket ของคนนั้น (ทุกแท็บ) — ใช้เป็นสารบัญหาตัว
+  const sockets = await io.in(`user:${userId}`).fetchSockets()
+  if (sockets.length === 0) return
+
+  // รวมห้องบอร์ดที่เขาเปิดอยู่ แล้วกรองเฉพาะบอร์ดของ org ที่ถูกเตะ
+  // (อาจเปิดบอร์ดของ org อื่นค้างไว้ด้วย — ห้ามไปยุ่งห้องพวกนั้น)
+  const openBoardIds = new Set<string>()
+  for (const s of sockets) {
+    for (const room of s.rooms) {
+      if (room.startsWith("board:")) openBoardIds.add(room.slice("board:".length))
+    }
+  }
+  const kickedBoardIds: string[] = []
+  for (const boardId of openBoardIds) {
+    const board = await boardRepo.findById(boardId)
+    if (board && board.organizationId === orgId) kickedBoardIds.push(boardId)
+  }
+
+  for (const s of sockets) {
+    s.leave(`org:${orgId}`)
+    for (const boardId of kickedBoardIds) s.leave(`board:${boardId}`)
+  }
+
+  // แจ้งฝั่ง client ของคนถูกเตะ (ทุกแท็บ) ให้จัดการ UI — เด้งออกจากหน้า org
+  // และล้าง cache (ห้อง user: ไม่ผูกกับ org จึงยังส่งถึงได้เสมอ)
+  io.to(`user:${userId}`).emit("org:removed", { organizationId: orgId })
+
+  // avatar ของเขาต้องหายจาก presence ของบอร์ดที่เคยเปิดให้คนที่เหลือเห็น
+  for (const boardId of kickedBoardIds) {
+    await broadcastPresence(boardId)
+  }
+}
+
 // เรียกหลัง mutation ของบอร์ดสำเร็จ → บอกทุกคนในห้องให้ refetch
 export function emitBoardChange(boardId: string): void {
   io?.to(`board:${boardId}`).emit("board:change")
