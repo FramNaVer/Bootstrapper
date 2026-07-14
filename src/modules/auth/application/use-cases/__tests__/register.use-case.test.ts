@@ -193,6 +193,24 @@ describe("GoogleLoginUseCase", () => {
         expect(result.accessToken).toBeDefined()
     })
 
+    // email จาก provider ต้องถูก normalize ก่อนใช้ — ถ้าไม่ทำ profile ที่ส่ง
+    // case ต่างจากใน DB จะ "หาไม่เจอ" แล้วสร้างบัญชีที่สองซ้อนบัญชีเดิม
+    it("should normalize provider email before lookup (no duplicate account)", async () => {
+        vi.mocked(mockUserRepo.findByEmail).mockResolvedValue(mockUser)
+        vi.mocked(mockTokenRepo.save).mockResolvedValue(undefined)
+
+        const googleLoginUseCase = new GoogleLoginUseCase(mockUserRepo, mockTokenRepo)
+        await googleLoginUseCase.execute({
+            googleId: "google-123",
+            email: "  Test@Example.COM ",
+            displayName: "Test User",
+            emailVerified: true,
+        })
+
+        expect(mockUserRepo.findByEmail).toHaveBeenCalledWith("test@example.com")
+        expect(mockUserRepo.create).not.toHaveBeenCalled()
+    })
+
     // ทดสอบว่าบัญชีที่ถูกปิดใช้งาน (isActive=false) ห้าม login ผ่าน OAuth
     it("should reject a deactivated account", async () => {
         vi.mocked(mockUserRepo.findByEmail).mockResolvedValue({

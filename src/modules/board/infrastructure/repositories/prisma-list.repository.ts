@@ -23,7 +23,8 @@ export class PrismaListRepository implements ListRepository {
   async listByBoard(boardId: string): Promise<ListEntity[]> {
     return this.prisma.list.findMany({
       where: { boardId, deletedAt: null },
-      orderBy: { position: "asc" },
+      // createdAt ตัดสินเมื่อ position เท่ากัน → ลำดับนิ่ง (สำคัญตอน rebalance)
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
     })
   }
 
@@ -40,6 +41,19 @@ export class PrismaListRepository implements ListRepository {
     data: { name?: string; position?: number }
   ): Promise<ListEntity> {
     return this.prisma.list.update({ where: { id }, data })
+  }
+
+  async updatePositions(
+    items: { id: string; position: number }[]
+  ): Promise<void> {
+    await this.prisma.$transaction(
+      items.map((item) =>
+        this.prisma.list.update({
+          where: { id: item.id },
+          data: { position: item.position },
+        })
+      )
+    )
   }
 
   async softDelete(id: string): Promise<void> {

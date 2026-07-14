@@ -40,6 +40,8 @@ const mockCardRepo: CardRepository = {
   getMaxPosition: vi.fn(),
   update: vi.fn(),
   move: vi.fn(),
+  listByListOrdered: vi.fn(),
+  updatePositions: vi.fn(),
   softDelete: vi.fn(),
   softDeleteByList: vi.fn(),
   listDueInRange: vi.fn(),
@@ -51,6 +53,7 @@ const mockListRepo: ListRepository = {
   listByBoard: vi.fn(),
   getMaxPosition: vi.fn(),
   update: vi.fn(),
+  updatePositions: vi.fn(),
   softDelete: vi.fn(),
 }
 
@@ -61,6 +64,9 @@ const mockActivityRepo: ActivityLogRepository = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // default: list ปลายทางว่าง → เช็ค rebalance หลัง move เป็น no-op
+  // (เทสต์ rebalance override ค่านี้เองในตัวเทสต์)
+  vi.mocked(mockCardRepo.listByListOrdered).mockResolvedValue([])
 })
 
 
@@ -236,6 +242,59 @@ describe("MoveCardUseCase", () => {
 
     await expect(useCase.execute(moveParams)).rejects.toThrow("List not found")
     expect(mockCardRepo.move).not.toHaveBeenCalled()
+  })
+
+  // rebalance: ลากแทรกจุดเดิมซ้ำๆ จน float gap หมด → ต้องจัดระยะใหม่ทั้ง list
+  it("should rebalance the target list when position gaps collapse", async () => {
+    vi.mocked(mockCardRepo.findById).mockResolvedValue(mockCard)
+    vi.mocked(mockListRepo.findById).mockResolvedValue({
+      ...mockList,
+      id: "list-2",
+    })
+    vi.mocked(mockCardRepo.move).mockResolvedValue(mockCard)
+    // card-a กับ card-b ห่างกัน 1e-9 < MIN_POSITION_GAP (1e-6)
+    vi.mocked(mockCardRepo.listByListOrdered).mockResolvedValue([
+      { ...mockCard, id: "card-a", position: 1000 },
+      { ...mockCard, id: "card-b", position: 1000 + 1e-9 },
+      { ...mockCard, id: "card-c", position: 2000 },
+    ])
+    const useCase = new MoveCardUseCase(
+      mockCardRepo,
+      mockListRepo,
+      mockActivityRepo
+    )
+
+    await useCase.execute(moveParams)
+
+    // จัดใหม่เป็นช่วงห่างมาตรฐานตามลำดับเดิม
+    expect(mockCardRepo.updatePositions).toHaveBeenCalledWith([
+      { id: "card-a", position: 1000 },
+      { id: "card-b", position: 2000 },
+      { id: "card-c", position: 3000 },
+    ])
+  })
+
+  it("should not rebalance when gaps are healthy", async () => {
+    vi.mocked(mockCardRepo.findById).mockResolvedValue(mockCard)
+    vi.mocked(mockListRepo.findById).mockResolvedValue({
+      ...mockList,
+      id: "list-2",
+    })
+    vi.mocked(mockCardRepo.move).mockResolvedValue(mockCard)
+    vi.mocked(mockCardRepo.listByListOrdered).mockResolvedValue([
+      { ...mockCard, id: "card-a", position: 1000 },
+      { ...mockCard, id: "card-b", position: 1500 },
+      { ...mockCard, id: "card-c", position: 2000 },
+    ])
+    const useCase = new MoveCardUseCase(
+      mockCardRepo,
+      mockListRepo,
+      mockActivityRepo
+    )
+
+    await useCase.execute(moveParams)
+
+    expect(mockCardRepo.updatePositions).not.toHaveBeenCalled()
   })
 })
 

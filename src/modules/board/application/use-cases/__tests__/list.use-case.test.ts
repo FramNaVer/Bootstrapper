@@ -44,6 +44,7 @@ const mockListRepo: ListRepository = {
   listByBoard: vi.fn(),
   getMaxPosition: vi.fn(),
   update: vi.fn(),
+  updatePositions: vi.fn(),
   softDelete: vi.fn(),
 }
 
@@ -54,6 +55,8 @@ const mockCardRepo: CardRepository = {
   getMaxPosition: vi.fn(),
   update: vi.fn(),
   move: vi.fn(),
+  listByListOrdered: vi.fn(),
+  updatePositions: vi.fn(),
   softDelete: vi.fn(),
   softDeleteByList: vi.fn(),
   listDueInRange: vi.fn(),
@@ -66,6 +69,8 @@ const mockActivityRepo: ActivityLogRepository = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // default: board ไม่มีคอลัมน์อื่น → เช็ค rebalance หลัง update position เป็น no-op
+  vi.mocked(mockListRepo.listByBoard).mockResolvedValue([])
 })
 
 
@@ -165,6 +170,39 @@ describe("UpdateListUseCase", () => {
     await expect(
       useCase.execute("org-1", "board-1", "list-1", "user-1", { name: "X" })
     ).rejects.toThrow("List not found")
+  })
+
+  // rebalance คอลัมน์ — กติกาเดียวกับการ์ด (ดู position.util)
+  it("should rebalance columns when position gaps collapse", async () => {
+    vi.mocked(mockListRepo.findById).mockResolvedValue(mockList)
+    vi.mocked(mockListRepo.update).mockResolvedValue(mockList)
+    vi.mocked(mockListRepo.listByBoard).mockResolvedValue([
+      { ...mockList, id: "list-a", position: 1000 },
+      { ...mockList, id: "list-b", position: 1000 + 1e-9 },
+    ])
+    const useCase = new UpdateListUseCase(mockListRepo, mockActivityRepo)
+
+    await useCase.execute("org-1", "board-1", "list-1", "user-1", {
+      position: 1000 + 1e-9,
+    })
+
+    expect(mockListRepo.updatePositions).toHaveBeenCalledWith([
+      { id: "list-a", position: 1000 },
+      { id: "list-b", position: 2000 },
+    ])
+  })
+
+  it("should not check rebalance when only renaming", async () => {
+    vi.mocked(mockListRepo.findById).mockResolvedValue(mockList)
+    vi.mocked(mockListRepo.update).mockResolvedValue(mockList)
+    const useCase = new UpdateListUseCase(mockListRepo, mockActivityRepo)
+
+    await useCase.execute("org-1", "board-1", "list-1", "user-1", {
+      name: "Renamed",
+    })
+
+    expect(mockListRepo.listByBoard).not.toHaveBeenCalled()
+    expect(mockListRepo.updatePositions).not.toHaveBeenCalled()
   })
 })
 

@@ -6,6 +6,7 @@ import {
   getRefreshTokenExpiry,
 } from "../utils/jwt.util"
 import { UnauthorizedError } from "@shared/errors/app.error"
+import { normalizeEmail } from "@shared/utils/email.util"
 
 export class GoogleLoginUseCase {
   constructor(
@@ -31,13 +32,17 @@ export class GoogleLoginUseCase {
       throw new UnauthorizedError("Google email is not verified")
     }
 
+    // normalize ก่อนใช้เสมอ — email ใน DB เป็น lowercase ถ้าไม่แปลง
+    // อาจ "หาไม่เจอ" แล้วสร้างบัญชีที่สองซ้อนบัญชีเดิมของ user
+    const email = normalizeEmail(profile.email)
+
     // หา user จาก email ก่อน
-    let user = await this.userRepo.findByEmail(profile.email)
+    let user = await this.userRepo.findByEmail(email)
 
     if (!user) {
       // ไม่มีในระบบ → สร้างใหม่พร้อม link Google provider
       user = await this.userRepo.create({
-        email: profile.email,
+        email,
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
         emailVerified: profile.emailVerified,

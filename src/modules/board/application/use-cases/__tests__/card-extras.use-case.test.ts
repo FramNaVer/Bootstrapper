@@ -61,6 +61,8 @@ const mockCardRepo: CardRepository = {
   getMaxPosition: vi.fn(),
   update: vi.fn(),
   move: vi.fn(),
+  listByListOrdered: vi.fn(),
+  updatePositions: vi.fn(),
   softDelete: vi.fn(),
   softDeleteByList: vi.fn(),
   listDueInRange: vi.fn(),

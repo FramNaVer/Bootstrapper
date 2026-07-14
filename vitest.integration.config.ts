@@ -1,12 +1,16 @@
+import "dotenv/config"
 import { defineConfig } from "vitest/config"
 import { fileURLToPath } from "node:url"
 
-// Integration test config — ต่อ DB จริง (อ่านค่าจาก .env ผ่าน dotenv ใน env.ts)
-// ต่างจาก unit config: ไม่ override DATABASE_URL ด้วยค่า dummy
+// Integration test config — ต่อ DB จริง
 //
 // รันด้วย: npm run test:integration
-// แนะนำให้ตั้ง DATABASE_URL ใน .env ชี้ไป "test database" แยกต่างหาก
-// เพราะเทสต์จะสร้าง/ลบข้อมูลจริง (มี cleanup ใน afterAll แต่กันพลาดไว้ดีกว่า)
+//
+// ถ้าตั้ง TEST_DATABASE_URL ไว้ (ดู .env.example) เทสต์จะใช้ DB นั้นแทน
+// DATABASE_URL ปกติ — แยกขาดจาก DB dev/prod เพราะเทสต์สร้าง/ลบข้อมูลจริง
+// (เคยมี user ตกค้างจากเทสต์ปนใน DB ที่แชร์กับ prod มาแล้ว)
+// กลไก: test.env ตั้งค่าเข้า process.env ก่อนเทสต์โหลด และ dotenv ใน env.ts
+// ไม่ทับค่าที่มีอยู่แล้ว → ค่า override นี้ชนะเสมอ
 export default defineConfig({
   resolve: {
     alias: {
@@ -17,9 +21,14 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.int.test.ts"],
+    env: {
+      ...(process.env.TEST_DATABASE_URL
+        ? { DATABASE_URL: process.env.TEST_DATABASE_URL }
+        : {}),
+    },
     // ต่อ DB ทีละ request ตามลำดับ — กัน test แย่ง state กัน
     fileParallelism: false,
-    // integration ใช้เวลานานกว่า unit (network round-trip ไป Neon)
+    // integration ใช้เวลานานกว่า unit (network round-trip ไป DB)
     testTimeout: 30000,
     hookTimeout: 30000,
   },

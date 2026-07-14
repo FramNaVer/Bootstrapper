@@ -6,7 +6,7 @@ import {
     generateRefreshToken,
     getRefreshTokenExpiry,
 } from "../utils/jwt.util";
-import { verifyPassword } from "../utils/password.util";
+import { verifyPassword, burnPasswordVerification } from "../utils/password.util";
 
 export class LoginUseCase {
     constructor(
@@ -18,12 +18,15 @@ export class LoginUseCase {
         // ใช้ error message เดียวกันทั้ง email ผิดและ password ผิด
         // เพื่อป้องกัน user enumeration attack (ไม่ให้ผู้โจมตีรู้ว่า email มีอยู่หรือไม่)
         const user = await this.userRepo.findByEmail(email);
-        if (!user || !user.isActive) {
-            throw new UnauthorizedError("Invalid email or password");
-        }
+        const passwordHash = user
+            ? await this.userRepo.findPasswordHashByUserId(user.id)
+            : null;
 
-        const passwordHash = await this.userRepo.findPasswordHashByUserId(user.id);
-        if (!passwordHash) {
+        // ทุกทางที่ล้มเหลว "ก่อนถึง bcrypt" ต้องเผาเวลาเท่า bcrypt จริงก่อนตอบ —
+        // message เหมือนกันอย่างเดียวไม่พอ: ถ้า email ไม่มีบัญชีแล้วตอบเร็วกว่า
+        // (ไม่ผ่าน bcrypt ~250ms) ผู้โจมตีจับเวลาแยกได้อยู่ดี (timing oracle)
+        if (!user || !user.isActive || !passwordHash) {
+            await burnPasswordVerification(password);
             throw new UnauthorizedError("Invalid email or password");
         }
 
