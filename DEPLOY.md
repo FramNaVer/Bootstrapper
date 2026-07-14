@@ -3,10 +3,11 @@
 ## TL;DR
 
 ```bash
-# build + run ในคอนเทนเนอร์ (อ่านค่าจาก .env)
-docker compose up --build
+# build + run ในคอนเทนเนอร์ — docker-compose อยู่ที่ ../infra (นอก repo นี้
+# เพราะเป็นเครื่องมือรัน local ของทั้งระบบ ไม่ใช่ของ backend อย่างเดียว)
+cd ../infra && docker compose --profile app up --build
 
-# หรือ build image ตรงๆ
+# หรือ build image ตรงๆ จาก repo นี้
 docker build -t bootstrapper-api .
 docker run --env-file .env -p 3000:3000 bootstrapper-api
 ```
