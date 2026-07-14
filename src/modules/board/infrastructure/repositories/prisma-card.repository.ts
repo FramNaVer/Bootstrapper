@@ -112,6 +112,29 @@ export class PrismaCardRepository implements CardRepository {
     return this.prisma.card.update({ where: { id }, data })
   }
 
+  async listByListOrdered(listId: string): Promise<CardEntity[]> {
+    return this.prisma.card.findMany({
+      where: { listId, deletedAt: null },
+      // createdAt เป็นตัวตัดสินเมื่อ position เท่ากัน (เคส gap หมดพอดี)
+      // → ลำดับนิ่งพอให้ rebalance ให้ผลเดิมทุกครั้ง
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    })
+  }
+
+  async updatePositions(
+    items: { id: string; position: number }[]
+  ): Promise<void> {
+    // transaction เดียว: ครึ่งๆ กลางๆ (บางใบขยับ บางใบไม่) แย่กว่าไม่ขยับเลย
+    await this.prisma.$transaction(
+      items.map((item) =>
+        this.prisma.card.update({
+          where: { id: item.id },
+          data: { position: item.position },
+        })
+      )
+    )
+  }
+
   async softDelete(id: string): Promise<void> {
     await this.prisma.card.update({
       where: { id },

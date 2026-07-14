@@ -37,6 +37,12 @@ export interface CardRepository {
   // ย้ายการ์ด: เปลี่ยน list และ/หรือ ตำแหน่งในคราวเดียว
   move(id: string, data: { listId: string; position: number }): Promise<CardEntity>
 
+  // การ์ดใน list เดียว เรียงตาม position — ใช้เช็ค gap หลัง move (rebalance)
+  listByListOrdered(listId: string): Promise<CardEntity[]>
+
+  // เขียน position ใหม่หลายใบใน transaction เดียว (rebalance ทั้ง list)
+  updatePositions(items: { id: string; position: number }[]): Promise<void>
+
   softDelete(id: string): Promise<void>
 
   // ลบการ์ดทั้งหมดใน list หนึ่ง (ใช้ตอนลบคอลัมน์ → การ์ดไม่ลอยค้าง)

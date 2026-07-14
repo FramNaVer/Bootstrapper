@@ -21,9 +21,15 @@ export const updateCardSchema = z
   })
 
 // ย้ายการ์ด: ต้องระบุ list ปลายทาง + ตำแหน่งใหม่ (client คำนวณมาแล้ว)
+// position ต้อง .finite(): z.number() เฉยๆ ยอมรับ Infinity ได้
+// (JSON.parse("1e999") → Infinity) — การ์ดใบเดียวที่ position = Infinity
+// จะทำให้แทรกการ์ดหลังมันไม่ได้ถาวร (midpoint ของ Infinity = Infinity)
 export const moveCardSchema = z.object({
   targetListId: z.string().uuid("targetListId must be a valid UUID"),
-  position: z.number(),
+  position: z
+    .number()
+    .finite("position must be a finite number")
+    .positive("position must be positive"),
 })
 
 export type CreateCardInput = z.infer<typeof createCardSchema>

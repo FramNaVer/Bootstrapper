@@ -22,5 +22,8 @@ export interface ListRepository {
     data: { name?: string; position?: number }
   ): Promise<ListEntity>
 
+  // เขียน position ใหม่หลายคอลัมน์ใน transaction เดียว (rebalance ทั้ง board)
+  updatePositions(items: { id: string; position: number }[]): Promise<void>
+
   softDelete(id: string): Promise<void>
 }

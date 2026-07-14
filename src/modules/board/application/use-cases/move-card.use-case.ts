@@ -3,6 +3,7 @@ import { ListRepository } from "../../domain/repositories/list.repository"
 import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getCardInBoard } from "../utils/card-access.util"
 import { getListInBoard } from "../utils/list-access.util"
+import { needsRebalance, rebalancedPositions } from "../utils/position.util"
 
 // ย้ายการ์ด: ไป list ใหม่ และ/หรือ เปลี่ยนตำแหน่ง
 //
@@ -37,6 +38,15 @@ export class MoveCardUseCase {
       listId: targetListId,
       position,
     })
+
+    // float มีความละเอียดจำกัด: ลากแทรกจุดเดิมซ้ำๆ ช่องว่างถูกหารครึ่งจนหมด
+    // → position ชนกัน ลำดับเด้งไปมา — หลังย้ายเช็ค list ปลายทาง ถ้า gap
+    // แคบกว่าขั้นต่ำให้จัดระยะใหม่เป็นช่วงห่างมาตรฐานทั้ง list
+    // (client เห็นค่าใหม่ตอน refetch จาก board:change ที่ route ส่งให้อยู่แล้ว)
+    const cardsInList = await this.cardRepo.listByListOrdered(targetListId)
+    if (needsRebalance(cardsInList.map((c) => c.position))) {
+      await this.cardRepo.updatePositions(rebalancedPositions(cardsInList))
+    }
 
     // หมายเหตุ atomicity: การ move กับการเขียน log เป็นคนละ statement
     // ถ้า log พังหลัง move สำเร็จ → การ์ดย้ายแล้วแต่ไม่มีบันทึก (data ไม่ผิด แค่ฟีดขาด)
