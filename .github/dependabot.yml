@@ -1,0 +1,26 @@
+# Dependabot — เปิด PR อัปเดต dependency อัตโนมัติ (จับ CVE ได้เร็วโดยไม่ต้องไล่เช็คเอง)
+# minor/patch รวมเป็น PR เดียวต่อสัปดาห์ (ไม่งั้น PR ถล่ม) — major แยกเดี่ยวเพราะต้องอ่าน breaking changes
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+
+  # action ใน workflow ก็เป็น dependency (supply chain) — อัปเดตด้วย
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # base image ใน Dockerfile (node:22-alpine ฯลฯ)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"

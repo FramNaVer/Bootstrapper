@@ -17,7 +17,8 @@ export interface ActivityLogEntity {
   boardId: string
   actorId: string
   action: ActionType
-  payload: unknown | null
+  // unknown ครอบ null อยู่แล้ว (ไม่ต้อง | null) — ผู้ใช้ต้อง narrow เองก่อนใช้
+  payload: unknown
   createdAt: Date
 }
 
