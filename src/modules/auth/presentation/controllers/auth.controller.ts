@@ -156,7 +156,7 @@ export class AuthController {
     }
   }
 
-  googleLogin = async (req: Request, res: Response, next: NextFunction) => {
+  googleLogin = (req: Request, res: Response, next: NextFunction) => {
     try {
       this.redirectToFrontendWithTokens(req, res)
     } catch (error) {
@@ -164,7 +164,7 @@ export class AuthController {
     }
   }
 
-  githubLogin = async (req: Request, res: Response, next: NextFunction) => {
+  githubLogin = (req: Request, res: Response, next: NextFunction) => {
     try {
       this.redirectToFrontendWithTokens(req, res)
     } catch (error) {

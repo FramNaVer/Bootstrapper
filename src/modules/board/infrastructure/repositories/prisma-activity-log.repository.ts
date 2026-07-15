@@ -41,7 +41,7 @@ export class PrismaActivityLogRepository implements ActivityLogRepository {
       organizationId: r.organizationId,
       boardId: r.boardId,
       actorId: r.actorId,
-      action: r.action as ActionType,
+      action: r.action,
       payload: r.payload,
       createdAt: r.createdAt,
       actorName: r.actor.displayName,

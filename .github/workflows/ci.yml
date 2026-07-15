@@ -12,8 +12,73 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # lint + typecheck + unit test + build — เร็ว ไม่ต้องมี DB
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      # ESLint (type-aware) — จับ logic ผิดที่ tsc มองไม่เห็น เช่น ลืม await
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  # integration test — ต่อ Postgres จริง (service container ชุดเดียวกับ infra/ ที่ใช้ local)
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: bootstrapper_test
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U app -d bootstrapper_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    env:
+      # DB ชี้ service container — ใช้ตัวเดียวทั้ง migrate (DIRECT_URL) และเทสต์ (DATABASE_URL)
+      DATABASE_URL: postgresql://app:app@localhost:5432/bootstrapper_test
+      DIRECT_URL: postgresql://app:app@localhost:5432/bootstrapper_test
+      # ค่า dummy ให้ env validation (env.ts) ผ่าน — ไม่ได้ต่อ service จริง
+      # (ชุดเดียวกับ vitest.config.ts ที่ใช้กับ unit test)
+      NODE_ENV: test
+      JWT_SECRET: ci-dummy-secret-ci-dummy-secret
+      JWT_REFRESH_SECRET: ci-dummy-refresh-secret-ci-dummy
+      GOOGLE_CLIENT_ID: ci-dummy-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-dummy-google-client-secret
+      GOOGLE_CALLBACK_URL: http://localhost:3000/api/v1/auth/google/callback
+      GITHUB_CLIENT_ID: ci-dummy-github-client-id
+      GITHUB_CLIENT_SECRET: ci-dummy-github-client-secret
+      GITHUB_CALLBACK_URL: http://localhost:3000/api/v1/auth/github/callback
 
     steps:
       - uses: actions/checkout@v4
@@ -30,11 +95,25 @@ jobs:
       - name: Prisma generate
         run: npx prisma generate
 
-      - name: Type check
-        run: npx tsc --noEmit
+      - name: Apply migrations
+        run: npx prisma migrate deploy
 
-      - name: Run tests
-        run: npm test
+      # Migration drift check — จับเคส "แก้ schema.prisma แล้วลืมสร้าง migration"
+      # เทียบสถานะ DB (ผลของ migrations ทั้งหมด) กับ schema.prisma
+      # exit 2 = มี diff → job แดงก่อนถึง deploy (--exit-code)
+      - name: Migration drift check
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
 
-      - name: Build
-        run: npm run build
+      - name: Integration tests
+        run: npm run test:integration
+
+  # ยืนยันว่า Docker image build ผ่าน — Railway ใช้ Dockerfile ตัวนี้ตอน deploy
+  # ถ้าไม่เช็คที่นี่ Dockerfile พังจะรู้ตัวตอน deploy (ช้าและเจ็บกว่า)
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t bootstrapper-api .

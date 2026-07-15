@@ -86,19 +86,21 @@ export function initSocket(httpServer: HttpServer): void {
 
   io.on("connection", (socket) => {
     // ห้องส่วนตัวของ user → ใช้ push แจ้งเตือนถึงตัวบุคคล (ทุกแท็บของเขา)
-    socket.join(`user:${socket.data.userId}`)
+    // (join/leave คืน Promise เมื่อ adapter เป็น async เช่น Redis — ใน sync
+    //  context ใช้ void ทิ้งอย่างตั้งใจ, ใน async handler ให้ await จริง)
+    void socket.join(`user:${socket.data.userId}`)
 
     socket.on("join-board", async (boardId: unknown) => {
       if (typeof boardId !== "string") return
       if (await canAccessBoard(socket.data.userId, boardId)) {
-        socket.join(`board:${boardId}`)
+        await socket.join(`board:${boardId}`)
         await broadcastPresence(boardId)
       }
     })
 
     socket.on("leave-board", async (boardId: unknown) => {
       if (typeof boardId !== "string") return
-      socket.leave(`board:${boardId}`)
+      await socket.leave(`board:${boardId}`)
       await broadcastPresence(boardId)
     })
 
@@ -109,19 +111,23 @@ export function initSocket(httpServer: HttpServer): void {
         socket.data.userId,
         orgId
       )
-      if (membership) socket.join(`org:${orgId}`)
+      if (membership) await socket.join(`org:${orgId}`)
     })
 
     socket.on("leave-org", (orgId: unknown) => {
       if (typeof orgId !== "string") return
-      socket.leave(`org:${orgId}`)
+      void socket.leave(`org:${orgId}`)
     })
 
     // ก่อนหลุด socket ยังอยู่ในห้อง → update presence โดยตัดตัวเองออก
+    // fire-and-forget โดยเจตนา (คนกำลังหลุด ไม่มีใครรอผล) แต่ต้อง catch
+    // ไม่งั้น reject จาก fetchSockets กลายเป็น unhandled rejection ฆ่า process ได้
     socket.on("disconnecting", () => {
       for (const room of socket.rooms) {
         if (room.startsWith("board:")) {
-          broadcastPresence(room.slice("board:".length), socket.id)
+          broadcastPresence(room.slice("board:".length), socket.id).catch(
+            (err) => logger.error({ err }, "Presence broadcast failed")
+          )
         }
       }
     })
