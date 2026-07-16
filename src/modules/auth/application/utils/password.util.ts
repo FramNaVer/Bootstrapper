@@ -26,3 +26,15 @@ export function verifyPassword(
 ): Promise<boolean> {
   return bcrypt.compare(password, passwordHash)
 }
+
+// hash จริงของสตริงสุ่มที่ไม่ตรงกับ input ไหนๆ (cost 12 เท่า BCRYPT_ROUNDS —
+// ถ้าเปลี่ยน rounds ต้อง generate ใหม่ให้ cost ตรงกัน ไม่งั้นเวลาไม่เท่ากัน)
+const DUMMY_HASH = "$2b$12$W0Gq2X127lFfhC2fi27.KO3IEDWzCNHoGZGbiBo8MAcuvS4b/RDBK"
+
+// "เผาเวลา" เท่าการ verify จริง — ใช้ใน login ตอน "ไม่พบ user / ไม่มีรหัส"
+// ถ้า path เหล่านั้นตอบเร็วกว่า path รหัสผิด (ที่ต้องผ่าน bcrypt ~250ms)
+// ผู้โจมตีจับเวลา response แยกได้ว่า email ไหนมีบัญชี แม้ error message
+// จะเหมือนกันทุกกรณี (timing oracle) — เรียกตัวนี้ให้ทุกทางช้าเท่ากัน
+export async function burnPasswordVerification(password: string): Promise<void> {
+  await bcrypt.compare(password, DUMMY_HASH)
+}

@@ -1,4 +1,6 @@
 import { PrismaClient } from "@generated/prisma"
+import { TransactionContext } from "@shared/database/unit-of-work"
+import { prismaFrom } from "@shared/database/prisma-unit-of-work"
 import { CardRepository } from "../../domain/repositories/card.repository"
 import {
   CardEntity,
@@ -107,9 +109,33 @@ export class PrismaCardRepository implements CardRepository {
 
   async move(
     id: string,
-    data: { listId: string; position: number }
+    data: { listId: string; position: number },
+    ctx?: TransactionContext
   ): Promise<CardEntity> {
-    return this.prisma.card.update({ where: { id }, data })
+    return prismaFrom(this.prisma, ctx).card.update({ where: { id }, data })
+  }
+
+  async listByListOrdered(listId: string): Promise<CardEntity[]> {
+    return this.prisma.card.findMany({
+      where: { listId, deletedAt: null },
+      // createdAt เป็นตัวตัดสินเมื่อ position เท่ากัน (เคส gap หมดพอดี)
+      // → ลำดับนิ่งพอให้ rebalance ให้ผลเดิมทุกครั้ง
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    })
+  }
+
+  async updatePositions(
+    items: { id: string; position: number }[]
+  ): Promise<void> {
+    // transaction เดียว: ครึ่งๆ กลางๆ (บางใบขยับ บางใบไม่) แย่กว่าไม่ขยับเลย
+    await this.prisma.$transaction(
+      items.map((item) =>
+        this.prisma.card.update({
+          where: { id: item.id },
+          data: { position: item.position },
+        })
+      )
+    )
   }
 
   async softDelete(id: string): Promise<void> {

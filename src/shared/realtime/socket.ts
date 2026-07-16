@@ -10,8 +10,13 @@
 
 import { Server } from "socket.io"
 import type { Server as HttpServer } from "http"
+import { createAdapter } from "@socket.io/redis-adapter"
 import { env } from "@shared/config/env"
 import { logger } from "@shared/logging/logger"
+import {
+  createRedisConnection,
+  isRedisEnabled,
+} from "@shared/queue/redis.connection"
 import { verifyAccessToken } from "@modules/auth/application/utils/jwt.util"
 import { prisma } from "@shared/database/prisma.client"
 import { PrismaUserRepository } from "@modules/auth/infrastructure/repositories/prisma-user.repository"
@@ -68,6 +73,17 @@ export function initSocket(httpServer: HttpServer): void {
     cors: { origin: allowedOrigins, credentials: true },
   })
 
+  // Redis adapter — ปลดข้อจำกัด single instance ของ realtime:
+  // ห้อง/broadcast/fetchSockets ทำงานข้ามทุก instance ผ่าน Redis pub/sub
+  // (ไม่มี Redis = adapter ในหน่วยความจำแบบเดิม ใช้ได้กับ instance เดียว)
+  // adapter ต้องใช้ pub/sub แยกคู่ — connection ที่ subscribe แล้วใช้คำสั่งอื่นไม่ได้
+  if (isRedisEnabled()) {
+    const pubClient = createRedisConnection()
+    const subClient = pubClient.duplicate()
+    io.adapter(createAdapter(pubClient, subClient))
+    logger.info("Socket.io Redis adapter enabled")
+  }
+
   // auth ทุก connection + โหลดโปรไฟล์ไว้ใช้แสดง presence
   io.use(async (socket, next) => {
     try {
@@ -86,19 +102,21 @@ export function initSocket(httpServer: HttpServer): void {
 
   io.on("connection", (socket) => {
     // ห้องส่วนตัวของ user → ใช้ push แจ้งเตือนถึงตัวบุคคล (ทุกแท็บของเขา)
-    socket.join(`user:${socket.data.userId}`)
+    // (join/leave คืน Promise เมื่อ adapter เป็น async เช่น Redis — ใน sync
+    //  context ใช้ void ทิ้งอย่างตั้งใจ, ใน async handler ให้ await จริง)
+    void socket.join(`user:${socket.data.userId}`)
 
     socket.on("join-board", async (boardId: unknown) => {
       if (typeof boardId !== "string") return
       if (await canAccessBoard(socket.data.userId, boardId)) {
-        socket.join(`board:${boardId}`)
+        await socket.join(`board:${boardId}`)
         await broadcastPresence(boardId)
       }
     })
 
     socket.on("leave-board", async (boardId: unknown) => {
       if (typeof boardId !== "string") return
-      socket.leave(`board:${boardId}`)
+      await socket.leave(`board:${boardId}`)
       await broadcastPresence(boardId)
     })
 
@@ -109,25 +127,75 @@ export function initSocket(httpServer: HttpServer): void {
         socket.data.userId,
         orgId
       )
-      if (membership) socket.join(`org:${orgId}`)
+      if (membership) await socket.join(`org:${orgId}`)
     })
 
     socket.on("leave-org", (orgId: unknown) => {
       if (typeof orgId !== "string") return
-      socket.leave(`org:${orgId}`)
+      void socket.leave(`org:${orgId}`)
     })
 
     // ก่อนหลุด socket ยังอยู่ในห้อง → update presence โดยตัดตัวเองออก
+    // fire-and-forget โดยเจตนา (คนกำลังหลุด ไม่มีใครรอผล) แต่ต้อง catch
+    // ไม่งั้น reject จาก fetchSockets กลายเป็น unhandled rejection ฆ่า process ได้
     socket.on("disconnecting", () => {
       for (const room of socket.rooms) {
         if (room.startsWith("board:")) {
-          broadcastPresence(room.slice("board:".length), socket.id)
+          broadcastPresence(room.slice("board:".length), socket.id).catch(
+            (err) => logger.error({ err }, "Presence broadcast failed")
+          )
         }
       }
     })
   })
 
   logger.info("Socket.io initialized")
+}
+
+// เตะ socket ทุกตัวของ user ออกจากห้องของ org — เรียกหลัง "ลบสมาชิก" สำเร็จ
+//
+// ทำไมต้องมี: REST ถูกตัดสิทธิ์ทันทีที่ membership หาย (RBAC เช็คทุก request)
+// แต่ห้อง socket เช็คสิทธิ์แค่ "ตอน join" — ถ้าไม่เตะ คนที่เพิ่งถูกลบจะยังรับ
+// ข้อความแชท/presence/สัญญาณบอร์ดของ org นี้สดๆ ต่อไปจนกว่าจะปิดแท็บเอง
+//
+// best-effort โดยเจตนา: การลบสมาชิก commit ไปแล้ว ความล้มเหลวตรงนี้
+// ห้ามทำให้ request ลบล้มตาม — ผู้เรียกควร catch + log เอง
+export async function kickUserFromOrgRooms(
+  userId: string,
+  orgId: string
+): Promise<void> {
+  if (!io) return
+  // ห้อง user:{id} มีทุก socket ของคนนั้น (ทุกแท็บ) — ใช้เป็นสารบัญหาตัว
+  const sockets = await io.in(`user:${userId}`).fetchSockets()
+  if (sockets.length === 0) return
+
+  // รวมห้องบอร์ดที่เขาเปิดอยู่ แล้วกรองเฉพาะบอร์ดของ org ที่ถูกเตะ
+  // (อาจเปิดบอร์ดของ org อื่นค้างไว้ด้วย — ห้ามไปยุ่งห้องพวกนั้น)
+  const openBoardIds = new Set<string>()
+  for (const s of sockets) {
+    for (const room of s.rooms) {
+      if (room.startsWith("board:")) openBoardIds.add(room.slice("board:".length))
+    }
+  }
+  const kickedBoardIds: string[] = []
+  for (const boardId of openBoardIds) {
+    const board = await boardRepo.findById(boardId)
+    if (board && board.organizationId === orgId) kickedBoardIds.push(boardId)
+  }
+
+  for (const s of sockets) {
+    s.leave(`org:${orgId}`)
+    for (const boardId of kickedBoardIds) s.leave(`board:${boardId}`)
+  }
+
+  // แจ้งฝั่ง client ของคนถูกเตะ (ทุกแท็บ) ให้จัดการ UI — เด้งออกจากหน้า org
+  // และล้าง cache (ห้อง user: ไม่ผูกกับ org จึงยังส่งถึงได้เสมอ)
+  io.to(`user:${userId}`).emit("org:removed", { organizationId: orgId })
+
+  // avatar ของเขาต้องหายจาก presence ของบอร์ดที่เคยเปิดให้คนที่เหลือเห็น
+  for (const boardId of kickedBoardIds) {
+    await broadcastPresence(boardId)
+  }
 }
 
 // เรียกหลัง mutation ของบอร์ดสำเร็จ → บอกทุกคนในห้องให้ refetch

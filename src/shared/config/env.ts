@@ -35,6 +35,12 @@ const envSchema = z.object({
   // ตั้งค่าใน dashboard ของ host ตอน production เท่านั้น
   SENTRY_DSN: z.string().optional(),
 
+  // Redis — optional โดยเจตนา: ไม่ตั้ง = แอปยังรันได้ครบทุกฟีเจอร์แบบ
+  // single-instance (email ส่ง inline, outbox ใช้ poller, ไม่มี socket adapter)
+  // ตั้งเมื่อไหร่ได้ job queue + retry + horizontal scaling ทันที
+  // dev local = redis จาก infra compose: redis://localhost:6379
+  REDIS_URL: z.string().optional(),
+
   // Base URL ของแอป — ใช้ประกอบลิงก์ใน email (verify / reset password)
   APP_URL: z.string().url().default("http://localhost:3000"),
 

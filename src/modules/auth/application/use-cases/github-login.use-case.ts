@@ -1,6 +1,7 @@
 import { UserRepository } from "../../domain/repositories/user.repository"
 import { TokenRepository } from "../../domain/repositories/token.repository"
 import { UnauthorizedError } from "@shared/errors/app.error"
+import { normalizeEmail } from "@shared/utils/email.util"
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -34,11 +35,15 @@ export class GithubLoginUseCase {
       throw new UnauthorizedError("GitHub email is not verified")
     }
 
-    let user = await this.userRepository.findByEmail(profile.email)
+    // normalize ก่อนใช้เสมอ — email ใน DB เป็น lowercase ถ้าไม่แปลง
+    // อาจ "หาไม่เจอ" แล้วสร้างบัญชีที่สองซ้อนบัญชีเดิมของ user
+    const email = normalizeEmail(profile.email)
+
+    let user = await this.userRepository.findByEmail(email)
 
     if (!user) {
       user = await this.userRepository.create({
-        email: profile.email,
+        email,
         displayName: profile.displayName,
         avatarUrl: profile.avatarUrl,
         emailVerified: profile.emailVerified,

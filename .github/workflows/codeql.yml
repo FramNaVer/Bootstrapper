@@ -1,0 +1,37 @@
+# CodeQL — SAST ของ GitHub: สแกนหา pattern ช่องโหว่ในโค้ด
+# (injection, path traversal, ReDoS, hardcoded secret ฯลฯ)
+# ผลขึ้นที่แท็บ Security > Code scanning ของ repo
+#
+# หมายเหตุ: ฟรีเฉพาะ public repo — ถ้า repo เป็น private workflow นี้จะ fail
+# (ต้องมี GitHub Advanced Security) ให้ลบไฟล์นี้หรือเปิด GHAS
+name: CodeQL
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  # สแกนประจำสัปดาห์ด้วย — กติกา CodeQL ใหม่ๆ จับช่องโหว่ในโค้ดเก่าที่เคยผ่านได้
+  schedule:
+    - cron: "0 21 * * 1" # จันทร์ 21:00 UTC = อังคาร 04:00 ICT
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write # อัปโหลดผลสแกนขึ้นแท็บ Security
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3

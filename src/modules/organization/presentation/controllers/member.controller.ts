@@ -3,6 +3,8 @@ import { ListMembersUseCase } from "../../application/use-cases/list-members.use
 import { ChangeMemberRoleUseCase } from "../../application/use-cases/change-member-role.use-case"
 import { RemoveMemberUseCase } from "../../application/use-cases/remove-member.use-case"
 import { MembershipRole } from "../../domain/entities/membership.entity"
+import { kickUserFromOrgRooms } from "@shared/realtime/socket"
+import { logger } from "@shared/logging/logger"
 
 export class MemberController {
   constructor(
@@ -48,12 +50,22 @@ export class MemberController {
 
   removeMember = async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const organizationId = req.params.orgId as string
+      const targetUserId = req.params.userId as string
       await this.removeMemberUseCase.execute({
-        organizationId: req.params.orgId as string,
+        organizationId,
         callerUserId: req.userId!,
         callerRole: req.membershipRole as MembershipRole,
-        targetUserId: req.params.userId as string,
+        targetUserId,
       })
+      // realtime: ตัดสิทธิ์ห้อง socket ทันที ไม่รอเขาปิดแท็บเอง
+      // (best-effort — membership ถูกลบ commit แล้ว realtime พลาดห้ามทำ request ล้ม)
+      await kickUserFromOrgRooms(targetUserId, organizationId).catch((err) =>
+        logger.error(
+          { err, targetUserId, organizationId },
+          "Failed to kick removed member from socket rooms"
+        )
+      )
       res.status(200).json({
         success: true,
         message: "Member removed successfully",
