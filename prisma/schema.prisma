@@ -359,6 +359,27 @@ enum ActionType {
   LIST_DELETED
 }
 
+// Transactional Outbox — side-effect ที่ "ต้องเกิดแน่" หลัง mutation สำเร็จ
+// (เช่น activity log) เขียนเป็น event ใน transaction เดียวกับ mutation
+// แล้ว worker ค่อยหยิบไปทำทีหลัง — process ตายตอนไหนก็ไม่มีงานหาย
+// เพราะ event อยู่ใน DB แล้ว (แหล่งความจริงเดียวกับ mutation)
+//
+// วงจรชีวิต: pending (processedAt null) → claimed (claimedAt = now, attempts+1)
+// → done (processedAt) | ปล่อยคืน (claim หมดอายุ) จนกว่า attempts จะครบเพดาน
+model OutboxEvent {
+  id          String    @id @default(uuid())
+  type        String // เช่น "board.card-moved" — ตัวกำหนดว่า handler ไหนรับ
+  payload     Json
+  attempts    Int       @default(0)
+  claimedAt   DateTime? // visibility timeout: กัน worker สองตัวหยิบงานเดียวกัน
+  processedAt DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+
+  // query หลักของ worker: หา pending ที่ claim ได้ เรียงเก่า→ใหม่
+  @@index([processedAt, claimedAt, createdAt])
+}
+
 // ข้อความแชทของ org — หนึ่ง org มีห้องแชทเดียว (Phase 2.3 chat v1)
 // ไม่มี updatedAt/deletedAt: v1 ยังแก้/ลบข้อความไม่ได้ (ค่อย expand ทีหลังถ้าทำ)
 model Message {

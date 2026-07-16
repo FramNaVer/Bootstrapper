@@ -10,8 +10,13 @@
 
 import { Server } from "socket.io"
 import type { Server as HttpServer } from "http"
+import { createAdapter } from "@socket.io/redis-adapter"
 import { env } from "@shared/config/env"
 import { logger } from "@shared/logging/logger"
+import {
+  createRedisConnection,
+  isRedisEnabled,
+} from "@shared/queue/redis.connection"
 import { verifyAccessToken } from "@modules/auth/application/utils/jwt.util"
 import { prisma } from "@shared/database/prisma.client"
 import { PrismaUserRepository } from "@modules/auth/infrastructure/repositories/prisma-user.repository"
@@ -67,6 +72,17 @@ export function initSocket(httpServer: HttpServer): void {
   io = new Server(httpServer, {
     cors: { origin: allowedOrigins, credentials: true },
   })
+
+  // Redis adapter — ปลดข้อจำกัด single instance ของ realtime:
+  // ห้อง/broadcast/fetchSockets ทำงานข้ามทุก instance ผ่าน Redis pub/sub
+  // (ไม่มี Redis = adapter ในหน่วยความจำแบบเดิม ใช้ได้กับ instance เดียว)
+  // adapter ต้องใช้ pub/sub แยกคู่ — connection ที่ subscribe แล้วใช้คำสั่งอื่นไม่ได้
+  if (isRedisEnabled()) {
+    const pubClient = createRedisConnection()
+    const subClient = pubClient.duplicate()
+    io.adapter(createAdapter(pubClient, subClient))
+    logger.info("Socket.io Redis adapter enabled")
+  }
 
   // auth ทุก connection + โหลดโปรไฟล์ไว้ใช้แสดง presence
   io.use(async (socket, next) => {

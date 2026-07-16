@@ -2,7 +2,28 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import request from "supertest"
 import { app } from "../../../../app"
 import { prisma } from "@shared/database/prisma.client"
+import { PrismaUnitOfWork } from "@shared/database/prisma-unit-of-work"
+import { OutboxProcessor } from "@shared/outbox/outbox.processor"
+import { PrismaOutboxRepository } from "@shared/outbox/prisma-outbox.repository"
 import { generateAccessToken } from "@modules/auth/application/utils/jwt.util"
+import { PrismaActivityLogRepository } from "@modules/board/infrastructure/repositories/prisma-activity-log.repository"
+import {
+  CARD_MOVED_EVENT,
+  makeCardMovedHandler,
+} from "@modules/board/application/outbox-handlers/card-moved.handler"
+
+// เทสต์ import แค่ app (ไม่ผ่าน main.ts) → ไม่มี outbox worker รันอยู่
+// จึง drain outbox "ด้วยมือ" ด้วย processor ตัวจริงชุดเดียวกับ production
+// — ได้ทดสอบทั้ง claim (raw SQL SKIP LOCKED) + handler + markProcessed กับ DB จริง
+const outboxProcessor = new OutboxProcessor(
+  new PrismaOutboxRepository(prisma),
+  new PrismaUnitOfWork(prisma),
+  {
+    [CARD_MOVED_EVENT]: makeCardMovedHandler(
+      new PrismaActivityLogRepository(prisma)
+    ),
+  }
+)
 
 // =============================================================
 // Integration test — ยิง HTTP จริงผ่าน middleware + RBAC + Prisma + Neon
@@ -56,6 +77,8 @@ afterAll(async () => {
   await prisma.user
     .deleteMany({ where: { id: { in: [ownerId, outsiderId] } } })
     .catch(() => {})
+  // outbox ไม่มี FK ผูกกับ org (จงใจ — event รอดชีวิตอิสระ) ต้องกวาดเอง
+  await prisma.outboxEvent.deleteMany({}).catch(() => {})
   await prisma.$disconnect()
 })
 
@@ -129,6 +152,11 @@ describe("Board module (integration)", () => {
   })
 
   it("records CARD_CREATED and CARD_MOVED in the activity feed", async () => {
+    // CARD_MOVED เดินผ่าน outbox (async) — drain ให้ event ถูกประมวลผลก่อนอ่านฟีด
+    // (production: worker/poller เป็นคน drain — ดู outbox.worker.ts)
+    const processed = await outboxProcessor.processBatch()
+    expect(processed).toBeGreaterThan(0) // ต้องมี event จากการ move ก่อนหน้า
+
     const res = await request(app)
       .get(`/api/v1/organizations/${orgId}/boards/${boardId}/activities`)
       .set("Authorization", `Bearer ${ownerToken}`)
