@@ -6,7 +6,7 @@
 # =============================================================
 
 # ---------- Stage 1: builder ----------
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 
 # คัดลอกแค่ manifest ก่อน → ใช้ layer cache: ถ้า dep ไม่เปลี่ยน ไม่ต้อง npm ci ใหม่
@@ -21,7 +21,7 @@ RUN npx prisma generate
 RUN npm run build
 
 # ---------- Stage 2: runner ----------
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
