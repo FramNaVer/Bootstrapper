@@ -15,6 +15,7 @@ import { PrismaOrganizationRepository } from "../../../infrastructure/repositori
 import { PrismaMembershipRepository } from "../../../infrastructure/repositories/prisma-membership.repository"
 import { PrismaInvitationRepository } from "../../../infrastructure/repositories/prisma-invitation.repository"
 import { NodemailerInvitationEmailService } from "../../../infrastructure/email/nodemailer-invitation-email.service"
+import { QueuedInvitationEmailService } from "../../../infrastructure/email/queued-invitation-email.service"
 import { CreateOrganizationUseCase } from "../../../application/use-cases/create-organization.use-case"
 import { ListMyOrganizationsUseCase } from "../../../application/use-cases/list-my-organizations.use-case"
 import { ListMembersUseCase } from "../../../application/use-cases/list-members.use-case"
@@ -52,7 +53,10 @@ const memberController = new MemberController(
 const userRepo = new PrismaUserRepository(prisma)
 const invitationRepo = new PrismaInvitationRepository(prisma)
 const notificationRepo = new PrismaNotificationRepository(prisma)
-const invitationEmail = new NodemailerInvitationEmailService()
+// อีเมลเชิญเดินผ่านคิวเหมือนฝั่ง auth — ไม่มี Redis ก็ส่งตรงเหมือนเดิม
+const invitationEmail = new QueuedInvitationEmailService(
+  new NodemailerInvitationEmailService()
+)
 const invitationController = new InvitationController(
   new InviteMemberUseCase(
     invitationRepo,

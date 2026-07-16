@@ -19,6 +19,7 @@ import { PrismaUserRepository } from "../../../infrastructure/repositories/prism
 import { PrismaTokenRepository } from "../../../infrastructure/repositories/prisma-token.repository"
 import { PrismaVerificationTokenRepository } from "../../../infrastructure/repositories/prisma-verification-token.repository"
 import { NodemailerEmailService } from "../../../infrastructure/email/nodemailer-email.service"
+import { QueuedEmailService } from "../../../infrastructure/email/queued-email.service"
 import { RegisterUseCase } from "../../../application/use-cases/register.use-case"
 import { LoginUseCase } from "../../../application/use-cases/login.use-case"
 import { GoogleLoginUseCase } from "../../../application/use-cases/google-login.use-case"
@@ -53,7 +54,8 @@ import passport from "passport"
 const userRepo = new PrismaUserRepository(prisma)
 const tokenRepo = new PrismaTokenRepository(prisma)
 const verificationTokenRepo = new PrismaVerificationTokenRepository(prisma)
-const emailService = new NodemailerEmailService()
+// อีเมลเดินผ่านคิว (retry ฟรีจาก BullMQ) — ไม่มี Redis ก็ส่งตรงเหมือนเดิม
+const emailService = new QueuedEmailService(new NodemailerEmailService())
 
 const registerUseCase = new RegisterUseCase(userRepo)
 const loginUseCase = new LoginUseCase(userRepo, tokenRepo)

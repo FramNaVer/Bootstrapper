@@ -1,4 +1,6 @@
 import { PrismaClient } from "@generated/prisma"
+import { TransactionContext } from "@shared/database/unit-of-work"
+import { prismaFrom } from "@shared/database/prisma-unit-of-work"
 import { CardRepository } from "../../domain/repositories/card.repository"
 import {
   CardEntity,
@@ -107,9 +109,10 @@ export class PrismaCardRepository implements CardRepository {
 
   async move(
     id: string,
-    data: { listId: string; position: number }
+    data: { listId: string; position: number },
+    ctx?: TransactionContext
   ): Promise<CardEntity> {
-    return this.prisma.card.update({ where: { id }, data })
+    return prismaFrom(this.prisma, ctx).card.update({ where: { id }, data })
   }
 
   async listByListOrdered(listId: string): Promise<CardEntity[]> {

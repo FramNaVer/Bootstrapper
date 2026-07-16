@@ -1,4 +1,6 @@
 import { PrismaClient, Prisma } from "@generated/prisma"
+import { TransactionContext } from "@shared/database/unit-of-work"
+import { prismaFrom } from "@shared/database/prisma-unit-of-work"
 import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import {
   ActionType,
@@ -8,14 +10,17 @@ import {
 export class PrismaActivityLogRepository implements ActivityLogRepository {
   constructor(private prisma: PrismaClient) {}
 
-  async create(data: {
-    organizationId: string
-    boardId: string
-    actorId: string
-    action: ActionType
-    payload?: unknown
-  }): Promise<void> {
-    await this.prisma.activityLog.create({
+  async create(
+    data: {
+      organizationId: string
+      boardId: string
+      actorId: string
+      action: ActionType
+      payload?: unknown
+    },
+    ctx?: TransactionContext
+  ): Promise<void> {
+    await prismaFrom(this.prisma, ctx).activityLog.create({
       data: {
         organizationId: data.organizationId,
         boardId: data.boardId,

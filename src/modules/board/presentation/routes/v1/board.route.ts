@@ -6,6 +6,9 @@
 
 import { Router } from "express"
 import { prisma } from "@shared/database/prisma.client"
+import { PrismaUnitOfWork } from "@shared/database/prisma-unit-of-work"
+import { PrismaOutboxRepository } from "@shared/outbox/prisma-outbox.repository"
+import { nudgeOutboxDrain } from "@shared/outbox/outbox.worker"
 import { validate } from "@shared/middlewares/validate.middleware"
 import { emitBoardChange } from "@shared/realtime/socket"
 import { authenticate } from "@modules/auth/presentation/middlewares/authenticate.middleware"
@@ -76,6 +79,8 @@ const commentRepo = new PrismaCommentRepository(prisma)
 const labelRepo = new PrismaLabelRepository(prisma)
 const assigneeRepo = new PrismaCardAssigneeRepository(prisma)
 const membershipRepo = new PrismaMembershipRepository(prisma)
+const uow = new PrismaUnitOfWork(prisma)
+const outboxRepo = new PrismaOutboxRepository(prisma)
 
 const boardController = new BoardController(
   new CreateBoardUseCase(boardRepo),
@@ -97,7 +102,9 @@ const cardController = new CardController(
   new ListCardsUseCase(boardRepo, cardRepo),
   new GetCardUseCase(cardRepo),
   new UpdateCardUseCase(cardRepo, activityRepo),
-  new MoveCardUseCase(cardRepo, listRepo, activityRepo),
+  // move-card เขียน mutation + outbox event ใน transaction เดียว
+  // (activity log ถูกเขียนโดย outbox worker ทีหลัง — ดู card-moved.handler)
+  new MoveCardUseCase(cardRepo, listRepo, uow, outboxRepo),
   new DeleteCardUseCase(cardRepo, activityRepo)
 )
 
@@ -145,6 +152,9 @@ router.use((req, res, next) => {
       res.statusCode < 300
     ) {
       emitBoardChange(boardId)
+      // กดกริ่ง outbox worker ให้กวาด event ที่ mutation เพิ่ง commit ทันที
+      // (ไม่กดก็ไม่หาย — repeatable/poller กวาดเองใน ~10 วิ แค่ฟีดขึ้นช้ากว่า)
+      nudgeOutboxDrain()
     }
   })
   next()

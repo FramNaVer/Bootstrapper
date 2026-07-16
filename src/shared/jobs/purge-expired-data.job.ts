@@ -16,8 +16,13 @@
 // =============================================================
 
 import cron from "node-cron"
+import { Redis } from "ioredis"
 import { prisma } from "@shared/database/prisma.client"
 import { logger } from "@shared/logging/logger"
+import {
+  createRedisConnection,
+  isRedisEnabled,
+} from "@shared/queue/redis.connection"
 
 // เก็บ soft-deleted ไว้ 30 วันเผื่อกู้คืน (อนาคตทำ trash UI ได้ในกรอบนี้)
 const SOFT_DELETE_RETENTION_DAYS = 30
@@ -76,6 +81,18 @@ export async function purgeExpiredData(): Promise<void> {
     where: { readAt: { not: null }, createdAt: { lt: notificationCutoff } },
   })
 
+  // --- Outbox event ที่จบชีวิตแล้ว ---
+  // ประมวลผลสำเร็จ = หมดหน้าที่ (เก็บ 7 วันพอไว้ไล่ debug timeline)
+  // ที่ fail จนครบเพดาน attempts เก็บนานกว่า (30 วัน) — มันคือหลักฐานของบั๊ก
+  const outboxEvents = await prisma.outboxEvent.deleteMany({
+    where: {
+      OR: [
+        { processedAt: { lt: new Date(now.getTime() - 7 * DAY_MS) } },
+        { processedAt: null, attempts: { gte: 5 }, createdAt: { lt: softDeleteCutoff } },
+      ],
+    },
+  })
+
   logger.info(
     {
       refreshTokens: refreshTokens.count,
@@ -86,28 +103,53 @@ export async function purgeExpiredData(): Promise<void> {
       lists: lists.count,
       boards: boards.count,
       notifications: notifications.count,
+      outboxEvents: outboxEvents.count,
     },
     "Purge job completed"
   )
+}
+
+// --- Distributed lock (Redis SET NX) ---
+// node-cron รันใน "ทุก" instance — พอสเกลเกิน 1 ตัว purge จะวิ่งพร้อมกัน
+// (ผลลัพธ์ไม่พัง เพราะ idempotent แต่เปลือง DB และตัวเลข log มั่ว)
+// ใครชิง SET NX ได้เป็นคนทำ — TTL 10 นาที ปล่อยเองเมื่อหมด (ยาวกว่างานจริงมาก
+// สั้นกว่ารอบถัดไปทั้งวัน จึงไม่ต้องเขียนโค้ด release ให้พลาดได้)
+let lockRedis: Redis | null = null
+
+async function acquirePurgeLock(): Promise<boolean> {
+  if (!isRedisEnabled()) return true // single instance: ทำได้เลย
+  lockRedis = lockRedis ?? createRedisConnection()
+  const result = await lockRedis.set(
+    "lock:purge-expired-data",
+    "1",
+    "EX",
+    600,
+    "NX"
+  )
+  return result === "OK"
+}
+
+function runPurgeWithLock(label: string): void {
+  acquirePurgeLock()
+    .then((acquired) => {
+      if (!acquired) {
+        logger.info(`Purge skipped — another instance holds the lock (${label})`)
+        return
+      }
+      return purgeExpiredData()
+    })
+    .catch((err) => logger.error({ err }, `Purge job failed (${label})`))
 }
 
 // เรียกครั้งเดียวตอน boot (จาก main.ts)
 export function initPurgeJob(): void {
   // ตี 3 เวลาไทยทุกวัน — Railway รันเป็น UTC → 20:00 UTC = 03:00 ICT
   // (กับดักคลาสสิก: เขียน cron ตามเวลาท้องถิ่นแล้ว server อยู่ timezone อื่น)
-  cron.schedule("0 20 * * *", () => {
-    purgeExpiredData().catch((err) =>
-      logger.error({ err }, "Purge job failed")
-    )
-  })
+  cron.schedule("0 20 * * *", () => runPurgeWithLock("cron"))
 
   // รันหนึ่งรอบหลัง boot ~30 วิ — กันเคส restart/deploy ข้ามเวลานัดพอดี
   // ปลอดภัยเพราะ job ลบเฉพาะของที่ตายโดยนิยาม รันกี่รอบผลเท่าเดิม (idempotent)
-  setTimeout(() => {
-    purgeExpiredData().catch((err) =>
-      logger.error({ err }, "Purge job failed (boot run)")
-    )
-  }, 30_000)
+  setTimeout(() => runPurgeWithLock("boot"), 30_000)
 
   logger.info("Purge job scheduled (daily 20:00 UTC = 03:00 ICT + on boot)")
 }
