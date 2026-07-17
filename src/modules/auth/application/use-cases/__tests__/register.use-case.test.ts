@@ -29,6 +29,7 @@ const mockUserRepo: UserRepository = {
     linkOAuthProvider: vi.fn(),
     markEmailVerified: vi.fn(),
     updatePassword: vi.fn(),
+    updateLastSeen: vi.fn(),
 }
 
 // Mock TokenRepository — แทน Prisma สำหรับ use cases ที่ต้องการ token repo

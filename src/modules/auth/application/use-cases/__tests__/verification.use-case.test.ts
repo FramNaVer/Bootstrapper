@@ -40,6 +40,7 @@ const mockUserRepo: UserRepository = {
   linkOAuthProvider: vi.fn(),
   markEmailVerified: vi.fn(),
   updatePassword: vi.fn(),
+  updateLastSeen: vi.fn(),
 }
 
 const mockVerificationRepo: VerificationTokenRepository = {

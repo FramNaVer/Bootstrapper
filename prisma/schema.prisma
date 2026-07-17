@@ -20,6 +20,9 @@ model User {
   role            Role     @default(USER)
   isEmailVerified Boolean  @default(false)
   isActive        Boolean  @default(true)
+  // เวลาที่ผู้ใช้ active ล่าสุด (heartbeat จาก socket) — ใช้แสดง "ออนไลน์"/"เห็นล่าสุดเมื่อ"
+  // nullable: user เก่าก่อนมีฟิลด์นี้ + คนที่ยังไม่เคยเชื่อม socket เลยจะเป็น null
+  lastSeenAt      DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
