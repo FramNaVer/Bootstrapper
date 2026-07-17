@@ -1,0 +1,49 @@
+# =============================================================
+# Migrate — รัน prisma migrate deploy กับ DB จริง (Neon) เมื่อ main ขยับ
+# =============================================================
+# ปิดช่องโหว่ "merge เข้า main แล้วลืม migrate" (เคยเกิดแล้ว 2026-07-17:
+# โค้ด outbox ขึ้น prod ก่อนตาราง OutboxEvent จะมีจริง) — railway.toml
+# ไม่มี migrate step เพราะ runtime image ไม่มี prisma CLI (เป็น devDependency)
+#
+# migrate deploy เป็น idempotent: ไม่มี migration ค้าง = จบเฉยๆ ไม่แตะอะไร
+# จึงรันทุก push ได้ปลอดภัย และช่วยเก็บตกกรณี run ก่อนหน้าเคยล้มเหลว
+#
+# ต้องมี repo secret `PROD_DIRECT_URL` = Neon **direct** connection string
+# (host ที่ไม่มี -pooler — migration ต้องต่อตรง ห้ามผ่าน connection pooler)
+#
+# ลำดับ expand-contract (DB ก่อนโค้ด): เปิด "Wait for CI" ใน Railway
+# service settings เพื่อให้ deploy เริ่มหลังจาก checks (รวม job นี้) ผ่านแล้ว
+name: Migrate
+
+on:
+  push:
+    branches: [main]
+  # รันมือได้จากแท็บ Actions — ใช้ตอนเพิ่งตั้ง/แก้ secret หรือ run ก่อนหน้าล้ม
+  workflow_dispatch:
+
+# migration ห้ามรันซ้อนกัน — run ใหม่เข้าคิวรอ (ห้าม cancel: ทุกตัวต้องรันจนจบ)
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # prisma.config.ts อ่าน datasource จาก DIRECT_URL ตัวเดียว
+      - name: Apply pending migrations
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: ${{ secrets.PROD_DIRECT_URL }}
