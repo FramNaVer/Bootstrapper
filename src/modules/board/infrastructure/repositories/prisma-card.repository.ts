@@ -18,16 +18,9 @@ export class PrismaCardRepository implements CardRepository {
     title: string
     description?: string | null
     position: number
-  }): Promise<CardEntity> {
-    return this.prisma.card.create({
-      data: {
-        organizationId: data.organizationId,
-        boardId: data.boardId,
-        listId: data.listId,
-        title: data.title,
-        description: data.description ?? null,
-        position: data.position,
-      },
+  }, ctx?: TransactionContext): Promise<CardEntity> {
+    return prismaFrom(this.prisma, ctx).card.create({
+      data,
     })
   }
 
@@ -102,9 +95,10 @@ export class PrismaCardRepository implements CardRepository {
 
   async update(
     id: string,
-    data: { title?: string; description?: string | null; dueDate?: Date | null }
+    data: { title?: string; description?: string | null; dueDate?: Date | null },
+    ctx?: TransactionContext
   ): Promise<CardEntity> {
-    return this.prisma.card.update({ where: { id }, data })
+    return prismaFrom(this.prisma, ctx).card.update({ where: { id }, data })
   }
 
   async move(
@@ -138,15 +132,15 @@ export class PrismaCardRepository implements CardRepository {
     )
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.prisma.card.update({
+  async softDelete(id: string, ctx?: TransactionContext): Promise<void> {
+    await prismaFrom(this.prisma, ctx).card.update({
       where: { id },
       data: { deletedAt: new Date() },
     })
   }
 
-  async softDeleteByList(listId: string): Promise<void> {
-    await this.prisma.card.updateMany({
+  async softDeleteByList(listId: string, ctx?: TransactionContext): Promise<void> {
+    await prismaFrom(this.prisma, ctx).card.updateMany({
       where: { listId, deletedAt: null },
       data: { deletedAt: new Date() },
     })
