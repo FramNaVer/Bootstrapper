@@ -33,6 +33,6 @@ export function makeCardCreateHandler(activityRepo: ActivityLogRepository): Outb
                 title: p.title,
                 listId: p.listId
             }
-        })
+        }, tx)
     }
 }
