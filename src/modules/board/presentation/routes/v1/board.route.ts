@@ -105,7 +105,7 @@ const cardController = new CardController(
   // move-card เขียน mutation + outbox event ใน transaction เดียว
   // (activity log ถูกเขียนโดย outbox worker ทีหลัง — ดู card-moved.handler)
   new MoveCardUseCase(cardRepo, listRepo, uow, outboxRepo),
-  new DeleteCardUseCase(cardRepo, activityRepo)
+  new DeleteCardUseCase(cardRepo, uow, outboxRepo)
 )
 
 const activityController = new ActivityController(

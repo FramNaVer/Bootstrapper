@@ -11,6 +11,7 @@ import { UnitOfWork, TransactionContext } from "@shared/database/unit-of-work"
 import { OutboxRepository } from "@shared/outbox/outbox.repository"
 import { CARD_MOVED_EVENT } from "../../outbox-handlers/card-moved.handler"
 import { CARD_CREATED_EVENT } from "../../outbox-handlers/card-created.handler"
+import { CARD_DELETED_EVENT } from "../../outbox-handlers/card-deleted.handler"
 
 const POSITION_GAP = 1000
 
@@ -372,7 +373,7 @@ describe("MoveCardUseCase", () => {
 describe("DeleteCardUseCase", () => {
   it("should soft-delete and log CARD_DELETED", async () => {
     vi.mocked(mockCardRepo.findById).mockResolvedValue(mockCard)
-    const useCase = new DeleteCardUseCase(mockCardRepo, mockActivityRepo)
+    const useCase = new DeleteCardUseCase(mockCardRepo, mockUow, mockOutboxRepo)
 
     await useCase.execute({
       organizationId: "org-1",
@@ -381,9 +382,17 @@ describe("DeleteCardUseCase", () => {
       actorId: "user-1",
     })
 
-    expect(mockCardRepo.softDelete).toHaveBeenCalledWith("card-1")
-    expect(mockActivityRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "CARD_DELETED" })
-    )
+    expect(mockCardRepo.softDelete).toHaveBeenCalledWith("card-1", FAKE_TX)
+    expect(mockOutboxRepo.create).toHaveBeenCalledWith({
+      type: CARD_DELETED_EVENT,
+      payload: {
+        organizationId: "org-1",
+        boardId: "board-1",
+        actorId: "user-1",
+        cardId: "card-1",
+        title: "Task",
+        listId: "list-1",
+      }
+    }, FAKE_TX)
   })
 })
