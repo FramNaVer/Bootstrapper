@@ -1,7 +1,12 @@
 import { CardRepository } from "../../domain/repositories/card.repository"
 import { ListRepository } from "../../domain/repositories/list.repository"
-import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getListInBoard } from "../utils/list-access.util"
+import { UnitOfWork } from "@shared/database/unit-of-work"
+import { OutboxRepository } from "@shared/outbox/outbox.repository"
+import {
+  CARD_CREATED_EVENT,
+  CardCreatedPayload,
+} from "../outbox-handlers/card-created.handler"
 
 const POSITION_GAP = 1000
 
@@ -9,8 +14,9 @@ export class CreateCardUseCase {
   constructor(
     private cardRepo: CardRepository,
     private listRepo: ListRepository,
-    private activityRepo: ActivityLogRepository
-  ) {}
+    private uow: UnitOfWork,
+    private outboxRepo: OutboxRepository
+  ) { }
 
   async execute(params: {
     organizationId: string
@@ -29,22 +35,33 @@ export class CreateCardUseCase {
     const maxPosition = await this.cardRepo.getMaxPosition(listId)
     const position = (maxPosition ?? 0) + POSITION_GAP
 
-    const card = await this.cardRepo.create({
-      organizationId,
-      boardId,
-      listId,
-      title: params.title,
-      description: params.description ?? null,
-      position,
-    })
+    const card = await this.uow.run(async (tx) => {
+      const created = await this.cardRepo.create({
+        organizationId,
+        boardId,
+        listId,
+        position,
+        title: params.title,
+        description: params.description ?? null,
+      },
+        tx
+      )
 
-    // บันทึกฟีด — ดูหมายเหตุเรื่อง atomicity ที่ move-card.use-case
-    await this.activityRepo.create({
-      organizationId,
-      boardId,
-      actorId,
-      action: "CARD_CREATED",
-      payload: { cardId: card.id, title: card.title, listId },
+      const payload: CardCreatedPayload = {
+        organizationId,
+        boardId,
+        actorId,
+        cardId: created.id,
+        title: created.title,
+        listId: created.listId,
+      }
+
+      await this.outboxRepo.create({
+        type: CARD_CREATED_EVENT,
+        payload,
+      }, tx)
+
+      return created
     })
 
     return card

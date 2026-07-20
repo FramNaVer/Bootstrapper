@@ -10,6 +10,7 @@ import { ListEntity } from "../../../domain/entities/list.entity"
 import { UnitOfWork, TransactionContext } from "@shared/database/unit-of-work"
 import { OutboxRepository } from "@shared/outbox/outbox.repository"
 import { CARD_MOVED_EVENT } from "../../outbox-handlers/card-moved.handler"
+import { CARD_CREATED_EVENT } from "../../outbox-handlers/card-created.handler"
 
 const POSITION_GAP = 1000
 
@@ -107,14 +108,16 @@ describe("CreateCardUseCase", () => {
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute(baseParams)
 
     expect(mockCardRepo.getMaxPosition).toHaveBeenCalledWith("list-1")
     expect(mockCardRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: 3000, listId: "list-1" })
+      expect.objectContaining({ position: 3000, listId: "list-1" }),
+      FAKE_TX
     )
   })
 
@@ -125,35 +128,42 @@ describe("CreateCardUseCase", () => {
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute(baseParams)
 
     expect(mockCardRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: POSITION_GAP })
+      expect.objectContaining({ position: POSITION_GAP }),
+      FAKE_TX
     )
   })
 
-  it("should log a CARD_CREATED activity", async () => {
+  it("should write a card-created outbox event in the same transaction", async () => {
     vi.mocked(mockListRepo.findById).mockResolvedValue(mockList)
     vi.mocked(mockCardRepo.getMaxPosition).mockResolvedValue(null)
     vi.mocked(mockCardRepo.create).mockResolvedValue(mockCard)
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute(baseParams)
 
-    expect(mockActivityRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(mockOutboxRepo.create).toHaveBeenCalledWith({
+      type: CARD_CREATED_EVENT,
+      payload: {
+        organizationId: "org-1",
         boardId: "board-1",
         actorId: "user-1",
-        action: "CARD_CREATED",
-      })
-    )
+        cardId: "card-1",
+        listId: "list-1",
+        title: "Task",
+      }
+    } , FAKE_TX)
   })
 
   it("should throw NotFound (and not create) when target list is cross-board", async () => {
@@ -164,12 +174,13 @@ describe("CreateCardUseCase", () => {
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await expect(useCase.execute(baseParams)).rejects.toThrow("List not found")
     expect(mockCardRepo.create).not.toHaveBeenCalled()
-    expect(mockActivityRepo.create).not.toHaveBeenCalled()
+    expect(mockOutboxRepo.create).not.toHaveBeenCalled()
   })
 })
 

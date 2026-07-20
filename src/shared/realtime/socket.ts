@@ -29,6 +29,24 @@ const userRepo = new PrismaUserRepository(prisma)
 const boardRepo = new PrismaBoardRepository(prisma)
 const membershipRepo = new PrismaMembershipRepository(prisma)
 
+// --- presence: อัปเดต "เห็นล่าสุดเมื่อ" ของ user ---
+// client ยิง heartbeat ทุก ~60s ขณะเปิดแอป → เก็บเวลา active ล่าสุดลง DB
+// throttle ในหน่วยความจำ: เขียนซ้ำไม่ถี่กว่านี้ (กัน DB write ทุก event ต่อ user)
+// (เป็น process-local — หลาย instance ต่างเก็บ map ของตัวเอง ก็แค่เขียน DB
+//  บ่อยขึ้นเป็นจำนวนเท่าของ instance ซึ่งยังห่างจนไม่กระทบ)
+const LAST_SEEN_THROTTLE_MS = 45_000
+const lastSeenWrites = new Map<string, number>()
+
+function touchLastSeen(userId: string): void {
+  const now = Date.now()
+  const prev = lastSeenWrites.get(userId) ?? 0
+  if (now - prev < LAST_SEEN_THROTTLE_MS) return
+  lastSeenWrites.set(userId, now)
+  userRepo
+    .updateLastSeen(userId, new Date(now))
+    .catch((err) => logger.error({ err, userId }, "updateLastSeen failed"))
+}
+
 // ผู้ใช้เข้าห้องบอร์ดได้ก็ต่อเมื่อเป็นสมาชิก org ของบอร์ดนั้น (กัน join มั่ว)
 async function canAccessBoard(userId: string, boardId: string): Promise<boolean> {
   const board = await boardRepo.findById(boardId)
@@ -105,6 +123,10 @@ export function initSocket(httpServer: HttpServer): void {
     // (join/leave คืน Promise เมื่อ adapter เป็น async เช่น Redis — ใน sync
     //  context ใช้ void ทิ้งอย่างตั้งใจ, ใน async handler ให้ await จริง)
     void socket.join(`user:${socket.data.userId}`)
+
+    // เชื่อมต่อสำเร็จ = active ทันที + heartbeat ต่อเนื่องระหว่างเปิดแอป
+    touchLastSeen(socket.data.userId)
+    socket.on("heartbeat", () => touchLastSeen(socket.data.userId))
 
     socket.on("join-board", async (boardId: unknown) => {
       if (typeof boardId !== "string") return

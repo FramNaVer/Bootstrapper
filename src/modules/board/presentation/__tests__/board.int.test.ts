@@ -11,6 +11,10 @@ import {
   CARD_MOVED_EVENT,
   makeCardMovedHandler,
 } from "@modules/board/application/outbox-handlers/card-moved.handler"
+import {
+  CARD_CREATED_EVENT,
+  makeCardCreateHandler,
+} from "@modules/board/application/outbox-handlers/card-created.handler"
 
 // เทสต์ import แค่ app (ไม่ผ่าน main.ts) → ไม่มี outbox worker รันอยู่
 // จึง drain outbox "ด้วยมือ" ด้วย processor ตัวจริงชุดเดียวกับ production
@@ -22,6 +26,9 @@ const outboxProcessor = new OutboxProcessor(
     [CARD_MOVED_EVENT]: makeCardMovedHandler(
       new PrismaActivityLogRepository(prisma)
     ),
+    [CARD_CREATED_EVENT]: makeCardCreateHandler(
+      new PrismaActivityLogRepository(prisma)
+    )
   }
 )
 

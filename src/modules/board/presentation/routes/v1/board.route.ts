@@ -98,7 +98,7 @@ const listController = new ListController(
 )
 
 const cardController = new CardController(
-  new CreateCardUseCase(cardRepo, listRepo, activityRepo),
+  new CreateCardUseCase(cardRepo, listRepo, uow, outboxRepo),
   new ListCardsUseCase(boardRepo, cardRepo),
   new GetCardUseCase(cardRepo),
   new UpdateCardUseCase(cardRepo, activityRepo),

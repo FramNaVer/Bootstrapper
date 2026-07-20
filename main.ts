@@ -24,6 +24,10 @@ import {
   CARD_MOVED_EVENT,
   makeCardMovedHandler,
 } from "@modules/board/application/outbox-handlers/card-moved.handler"
+import {
+  CARD_CREATED_EVENT,
+  makeCardCreateHandler,
+} from "@modules/board/application/outbox-handlers/card-created.handler"
 
 const PORT = env.PORT
 
@@ -49,13 +53,13 @@ httpServer.listen(PORT, () => {
 
   // outbox worker: ทะเบียน handler ทั้งหมดอยู่ตรงนี้ — เพิ่ม event ใหม่
   // ต้องมาลงทะเบียนที่นี่ ไม่งั้น processor จะ markFailed ว่าไม่รู้จัก type
+  const activityRepo = new PrismaActivityLogRepository(prisma)
   const outboxProcessor = new OutboxProcessor(
     new PrismaOutboxRepository(prisma),
     new PrismaUnitOfWork(prisma),
     {
-      [CARD_MOVED_EVENT]: makeCardMovedHandler(
-        new PrismaActivityLogRepository(prisma)
-      ),
+      [CARD_MOVED_EVENT]: makeCardMovedHandler(activityRepo),
+      [CARD_CREATED_EVENT]: makeCardCreateHandler(activityRepo),
     }
   )
   initOutboxWorker(outboxProcessor)
