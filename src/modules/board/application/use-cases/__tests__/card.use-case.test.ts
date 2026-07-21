@@ -12,6 +12,8 @@ import { OutboxRepository } from "@shared/outbox/outbox.repository"
 import { CARD_MOVED_EVENT } from "../../outbox-handlers/card-moved.handler"
 import { CARD_CREATED_EVENT } from "../../outbox-handlers/card-created.handler"
 import { CARD_DELETED_EVENT } from "../../outbox-handlers/card-deleted.handler"
+import { UpdateCardUseCase } from "../update-card.use-case"
+import { CARD_UPDATED_EVENT } from "../../outbox-handlers/card-updated.handler"
 
 const POSITION_GAP = 1000
 
@@ -367,6 +369,41 @@ describe("MoveCardUseCase", () => {
     expect(mockCardRepo.updatePositions).not.toHaveBeenCalled()
   })
 })
+
+// UpdateCardUseCase — update content + CARD_UPDATED payload
+describe("UpdateCardUseCase", () => {
+  it("should write a card-updated outbox event in the same transaction", async () => {
+    vi.mocked(mockCardRepo.findById).mockResolvedValue(mockCard)
+    vi.mocked(mockCardRepo.update).mockResolvedValue({
+      ...mockCard,
+      title: "New Title",
+    })
+    const useCase = new UpdateCardUseCase(
+      mockCardRepo,
+      mockUow,
+      mockOutboxRepo
+    )
+
+    await useCase.execute({
+      organizationId: "org-1",
+      boardId: "board-1",
+      cardId: "card-1",
+      actorId: "user-1",
+      title: "New Title"
+    })
+
+    expect(mockOutboxRepo.create).toHaveBeenCalledWith({
+      type: CARD_UPDATED_EVENT,
+      payload: {
+        organizationId: "org-1",
+        boardId: "board-1",
+        actorId: "user-1",
+        cardId: "card-1",
+        title: "New Title",
+      }
+    }, FAKE_TX)
+  })
+}) 
 
 
 // DeleteCardUseCase — soft delete + activity

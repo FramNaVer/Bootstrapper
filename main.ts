@@ -32,6 +32,10 @@ import {
   CARD_DELETED_EVENT,
   makeCardDeleteHandler,
 } from "@modules/board/application/outbox-handlers/card-deleted.handler"
+import {
+  CARD_UPDATED_EVENT,
+  makeCardUpdateHandler,
+} from "@modules/board/application/outbox-handlers/card-updated.handler"
 
 const PORT = env.PORT
 
@@ -65,6 +69,7 @@ httpServer.listen(PORT, () => {
       [CARD_MOVED_EVENT]: makeCardMovedHandler(activityRepo),
       [CARD_CREATED_EVENT]: makeCardCreateHandler(activityRepo),
       [CARD_DELETED_EVENT]: makeCardDeleteHandler(activityRepo),
+      [CARD_UPDATED_EVENT]: makeCardUpdateHandler(activityRepo),
     }
   )
   initOutboxWorker(outboxProcessor)
