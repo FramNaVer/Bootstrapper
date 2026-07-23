@@ -36,6 +36,10 @@ import {
   CARD_UPDATED_EVENT,
   makeCardUpdateHandler,
 } from "@modules/board/application/outbox-handlers/card-updated.handler"
+import {
+  COMMENT_ADDED_EVENT,
+  makeCommentAddedHandler,
+} from "@modules/board/application/outbox-handlers/comment-added.handler"
 
 const PORT = env.PORT
 
@@ -52,7 +56,7 @@ httpServer.listen(PORT, () => {
   // วันที่โหลดเยอะจนอยากแยก: ย้ายบล็อกนี้ไป entry point ใหม่ได้เลย
   // เพราะ worker คุยกับระบบผ่าน queue/DB เท่านั้น ไม่แตะ express
 
-  // email worker: ⚠️ ต้อง inject ตัวส่งจริง (Nodemailer) เท่านั้น —
+  // email worker: ต้อง inject ตัวส่งจริง (Nodemailer) เท่านั้น —
   // ตัว Queued จะโยนงานกลับเข้าคิวเป็น loop
   initEmailWorker({
     emailService: new NodemailerEmailService(),
@@ -70,6 +74,7 @@ httpServer.listen(PORT, () => {
       [CARD_CREATED_EVENT]: makeCardCreateHandler(activityRepo),
       [CARD_DELETED_EVENT]: makeCardDeleteHandler(activityRepo),
       [CARD_UPDATED_EVENT]: makeCardUpdateHandler(activityRepo),
+      [COMMENT_ADDED_EVENT]: makeCommentAddedHandler(activityRepo),
     }
   )
   initOutboxWorker(outboxProcessor)

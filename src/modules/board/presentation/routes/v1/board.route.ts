@@ -113,7 +113,7 @@ const activityController = new ActivityController(
 )
 
 const commentController = new CommentController(
-  new AddCommentUseCase(cardRepo, commentRepo, activityRepo),
+  new AddCommentUseCase(cardRepo, commentRepo, uow, outboxRepo),
   new ListCommentsUseCase(cardRepo, commentRepo),
   new DeleteCommentUseCase(commentRepo)
 )

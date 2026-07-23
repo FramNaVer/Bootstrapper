@@ -4,6 +4,8 @@ import {
   CommentEntity,
   CommentWithAuthor,
 } from "../../domain/entities/comment.entity"
+import { TransactionContext } from "@shared/database/unit-of-work"
+import { prismaFrom } from "@shared/database/prisma-unit-of-work"
 
 export class PrismaCommentRepository implements CommentRepository {
   constructor(private prisma: PrismaClient) {}
@@ -13,8 +15,8 @@ export class PrismaCommentRepository implements CommentRepository {
     cardId: string
     authorId: string
     body: string
-  }): Promise<CommentEntity> {
-    return this.prisma.comment.create({ data })
+  }, ctx?: TransactionContext): Promise<CommentEntity> {
+    return prismaFrom(this.prisma, ctx).comment.create({data})
   }
 
   async findById(id: string): Promise<CommentEntity | null> {
