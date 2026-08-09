@@ -107,7 +107,8 @@ describe("CreateListUseCase", () => {
     await useCase.execute("org-1", "board-1", "user-1", { name: "To Do" })
 
     expect(mockListRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: POSITION_GAP })
+      expect.objectContaining({ position: POSITION_GAP }),
+      FAKE_TX
     )
   })
 
@@ -125,7 +126,8 @@ describe("CreateListUseCase", () => {
     await useCase.execute("org-1", "board-1", "user-1", { name: "Done" })
 
     expect(mockListRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: 3000 })
+      expect.objectContaining({ position: 3000 }),
+      FAKE_TX
     )
   })
 
@@ -168,7 +170,7 @@ describe("UpdateListUseCase", () => {
 
     expect(mockListRepo.update).toHaveBeenCalledWith("list-1", {
       position: 1500,
-    })
+    }, FAKE_TX)
   })
 
   it("should throw NotFound when list is in a different board", async () => {

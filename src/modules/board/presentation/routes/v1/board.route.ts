@@ -93,7 +93,7 @@ const boardController = new BoardController(
 const listController = new ListController(
   new CreateListUseCase(boardRepo, listRepo, uow, outboxRepo),
   new ListListsUseCase(boardRepo, listRepo),
-  new UpdateListUseCase(listRepo, activityRepo, uow, outboxRepo),
+  new UpdateListUseCase(listRepo, uow, outboxRepo),
   new DeleteListUseCase(listRepo, cardRepo, activityRepo)
 )
 

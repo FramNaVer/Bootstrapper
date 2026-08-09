@@ -4,7 +4,6 @@ import { MoveCardUseCase } from "../move-card.use-case"
 import { DeleteCardUseCase } from "../delete-card.use-case"
 import { CardRepository } from "../../../domain/repositories/card.repository"
 import { ListRepository } from "../../../domain/repositories/list.repository"
-import { ActivityLogRepository } from "../../../domain/repositories/activity-log.repository"
 import { CardEntity } from "../../../domain/entities/card.entity"
 import { ListEntity } from "../../../domain/entities/list.entity"
 import { UnitOfWork, TransactionContext } from "@shared/database/unit-of-work"
@@ -64,10 +63,6 @@ const mockListRepo: ListRepository = {
   softDelete: vi.fn(),
 }
 
-const mockActivityRepo: ActivityLogRepository = {
-  create: vi.fn(),
-  listByBoard: vi.fn(),
-}
 
 // token ปลอมแทน transaction — ใช้ยืนยันว่า mutation กับ outbox event
 // ถูกเรียกด้วย "transaction เดียวกัน" (หัวใจของ outbox pattern)

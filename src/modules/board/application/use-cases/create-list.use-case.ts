@@ -1,6 +1,5 @@
 import { BoardRepository } from "../../domain/repositories/board.repository"
 import { ListRepository } from "../../domain/repositories/list.repository"
-import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getBoardInOrg } from "../utils/board-access.util"
 import { UnitOfWork } from "@shared/database/unit-of-work"
 import { OutboxRepository } from "@shared/outbox/outbox.repository"

@@ -1,5 +1,4 @@
 import { ListRepository } from "../../domain/repositories/list.repository"
-import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getListInBoard } from "../utils/list-access.util"
 import { needsRebalance, rebalancedPositions } from "../utils/position.util"
 import { UnitOfWork } from "@shared/database/unit-of-work"
@@ -8,7 +7,7 @@ import {
   LIST_RENAMED_EVENT,
   ListRenamedPayload
 } from "../outbox-handlers/list-renamed.handler"
-import { text } from "express"
+
 
 // รองรับเปลี่ยนชื่อ และ/หรือ ย้ายตำแหน่งคอลัมน์ (position)
 export class UpdateListUseCase {
