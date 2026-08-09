@@ -1,4 +1,5 @@
 import { ListEntity } from "../entities/list.entity"
+import { TransactionContext } from "@shared/database/unit-of-work"
 
 export interface ListRepository {
   create(data: {
@@ -6,7 +7,7 @@ export interface ListRepository {
     boardId: string
     name: string
     position: number
-  }): Promise<ListEntity>
+  }, ctx?: TransactionContext): Promise<ListEntity>
 
   findById(id: string): Promise<ListEntity | null>
 
@@ -19,7 +20,8 @@ export interface ListRepository {
 
   update(
     id: string,
-    data: { name?: string; position?: number }
+    data: { name?: string; position?: number },
+    ctx?: TransactionContext
   ): Promise<ListEntity>
 
   // เขียน position ใหม่หลายคอลัมน์ใน transaction เดียว (rebalance ทั้ง board)

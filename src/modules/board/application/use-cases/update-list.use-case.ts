@@ -2,13 +2,21 @@ import { ListRepository } from "../../domain/repositories/list.repository"
 import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getListInBoard } from "../utils/list-access.util"
 import { needsRebalance, rebalancedPositions } from "../utils/position.util"
+import { UnitOfWork } from "@shared/database/unit-of-work"
+import { OutboxRepository } from "@shared/outbox/outbox.repository"
+import {
+  LIST_RENAMED_EVENT,
+  ListRenamedPayload
+} from "../outbox-handlers/list-renamed.handler"
+import { text } from "express"
 
 // รองรับเปลี่ยนชื่อ และ/หรือ ย้ายตำแหน่งคอลัมน์ (position)
 export class UpdateListUseCase {
   constructor(
     private listRepo: ListRepository,
-    private activityRepo: ActivityLogRepository
-  ) {}
+    private uow: UnitOfWork,
+    private outboxRepo: OutboxRepository
+  ) { }
 
   async execute(
     organizationId: string,
@@ -18,28 +26,38 @@ export class UpdateListUseCase {
     data: { name?: string; position?: number }
   ) {
     await getListInBoard(this.listRepo, listId, boardId, organizationId)
-    const list = await this.listRepo.update(listId, data)
 
-    // ย้ายตำแหน่งคอลัมน์ = แทรกกลางแบบเดียวกับการ์ด → gap หมดได้เหมือนกัน
-    // (เกิดยากกว่าเพราะคอลัมน์มีน้อย แต่กันด้วยกติกาเดียวกัน — ดู position.util)
+    // ถ้าเปลี่ยนชื่อ ให้บันทึก activity log และส่ง outbox event
+    const list = await this.uow.run(async (tx) => {
+      const updated = await this.listRepo.update(listId, data, tx)
+
+      //เขียน event ตอนเปลี่ยนชื่อ list
+      if (data.name !== undefined) {
+        const payload: ListRenamedPayload = {
+          organizationId,
+          boardId,
+          actorId,
+          listId,
+          name: updated.name,
+        }
+
+        await this.outboxRepo.create({
+          type: LIST_RENAMED_EVENT,
+          payload,
+        },
+          tx
+        )
+      }
+      return updated
+    })
+
+    //rebalance เหมือน move-card
     if (data.position !== undefined) {
       const listsInBoard = await this.listRepo.listByBoard(boardId)
       if (needsRebalance(listsInBoard.map((l) => l.position))) {
         await this.listRepo.updatePositions(rebalancedPositions(listsInBoard))
       }
     }
-
-    // log เฉพาะตอน "เปลี่ยนชื่อ" — ย้ายตำแหน่งเฉยๆ ไม่ต้องลงฟีด (รก)
-    if (data.name !== undefined) {
-      await this.activityRepo.create({
-        organizationId,
-        boardId,
-        actorId,
-        action: "LIST_RENAMED",
-        payload: { listId, name: list.name },
-      })
-    }
-
     return list
   }
 }

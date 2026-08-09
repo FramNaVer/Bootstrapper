@@ -40,6 +40,14 @@ import {
   COMMENT_ADDED_EVENT,
   makeCommentAddedHandler,
 } from "@modules/board/application/outbox-handlers/comment-added.handler"
+import {
+  LIST_RENAMED_EVENT,
+  makeListRenameHandler,
+} from "@modules/board/application/outbox-handlers/list-renamed.handler"
+import {
+  LIST_CREATED_EVENT,
+  makeListCreateHandler,
+} from "@modules/board/application/outbox-handlers/list-created.handler"
 
 const PORT = env.PORT
 
@@ -75,6 +83,8 @@ httpServer.listen(PORT, () => {
       [CARD_DELETED_EVENT]: makeCardDeleteHandler(activityRepo),
       [CARD_UPDATED_EVENT]: makeCardUpdateHandler(activityRepo),
       [COMMENT_ADDED_EVENT]: makeCommentAddedHandler(activityRepo),
+      [LIST_RENAMED_EVENT]: makeListRenameHandler(activityRepo),
+      [LIST_CREATED_EVENT]: makeListCreateHandler(activityRepo),
     }
   )
   initOutboxWorker(outboxProcessor)

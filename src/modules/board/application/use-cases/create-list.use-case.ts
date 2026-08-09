@@ -2,6 +2,12 @@ import { BoardRepository } from "../../domain/repositories/board.repository"
 import { ListRepository } from "../../domain/repositories/list.repository"
 import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getBoardInOrg } from "../utils/board-access.util"
+import { UnitOfWork } from "@shared/database/unit-of-work"
+import { OutboxRepository } from "@shared/outbox/outbox.repository"
+import {
+  LIST_CREATED_EVENT,
+  ListCreatedPayload,
+} from "../outbox-handlers/list-created.handler"
 
 // เว้นช่องว่างระหว่าง position แต่ละ list ไว้กว้างๆ
 // เผื่อแทรก list ใหม่ "ตรงกลาง" ภายหลังโดยไม่ต้องขยับตัวอื่น (เช่น 1000, 2000 → แทรก 1500)
@@ -11,7 +17,8 @@ export class CreateListUseCase {
   constructor(
     private boardRepo: BoardRepository,
     private listRepo: ListRepository,
-    private activityRepo: ActivityLogRepository
+    private uow: UnitOfWork,
+    private outboxRepo: OutboxRepository
   ) {}
 
   async execute(
@@ -26,20 +33,30 @@ export class CreateListUseCase {
     const maxPosition = await this.listRepo.getMaxPosition(boardId)
     const position = (maxPosition ?? 0) + POSITION_GAP
 
-    const list = await this.listRepo.create({
-      organizationId: board.organizationId,
-      boardId,
-      name: data.name,
-      position,
-    })
+    const list = await this.uow.run(async (tx) => {
+      const created  = await this.listRepo.create({
+        organizationId: board.organizationId,
+        boardId,
+        name: data.name,
+        position,
+      }, tx)
 
-    await this.activityRepo.create({
-      organizationId,
-      boardId,
-      actorId,
-      action: "LIST_CREATED",
-      payload: { listId: list.id, name: list.name },
-    })
+      const payload: ListCreatedPayload = {
+        organizationId: board.organizationId,
+        boardId,
+        actorId,
+        listId: created.id,
+        name: created.name,
+      }
+
+      await this.outboxRepo.create({
+        type: LIST_CREATED_EVENT,
+        payload,
+      }, tx)
+
+      return created
+    }
+  )
 
     return list
   }
