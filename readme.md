@@ -1,11 +1,30 @@
 # Bootstrapper — Multi-Tenant Kanban SaaS (API)
 
+[![CI](https://github.com/FramNaVer/Bootstrapper/actions/workflows/ci.yml/badge.svg)](https://github.com/FramNaVer/Bootstrapper/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/FramNaVer/Bootstrapper/actions/workflows/codeql.yml/badge.svg)](https://github.com/FramNaVer/Bootstrapper/actions/workflows/codeql.yml)
+[![tests](https://img.shields.io/badge/tests-123%20passing-brightgreen)](#testing)
+[![coverage](https://img.shields.io/badge/coverage-90%25%20statements-brightgreen)](#testing)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
+[![license](https://img.shields.io/badge/license-ISC-blue)](#license)
+
 A production-deployed, multi-tenant team task manager (think minimal Trello) built with **Clean Architecture**, hardened authentication, and real-time collaboration.
 
-**Live demo:** [board.tanadon-i.com](https://board.tanadon-i.com) · API at `api.tanadon-i.com`
 **Frontend repo:** [Bootstrapper-Client](https://github.com/FramNaVer/Bootstrapper-Client) (React 18 + Vite)
 
 > Built as a learning + portfolio project — but deployed and used for real classroom teamwork. Every architectural decision is documented in [docs/adr](docs/adr).
+
+## Try it
+
+**→ [board.tanadon-i.com](https://board.tanadon-i.com)** · API at [api.tanadon-i.com](https://api.tanadon-i.com/health)
+
+Sign in with the demo account — no registration, no email verification:
+
+| | |
+|---|---|
+| **Email** | `demo@tanadon-i.com` |
+| **Password** | `DemoPass123!` |
+
+It lands in **Demo Workspace**: two boards (drag cards across *To Do → กำลังทำ → เสร็จแล้ว*), labels, due dates that populate the org calendar, and seeded chat. Open it in two browsers to watch changes sync live. The workspace re-seeds from scratch on every run of the seed script, so feel free to break it.
 
 ---
 
@@ -138,7 +157,9 @@ Without SMTP config, dev mode logs email links to the console instead of sending
 npx ts-node -r tsconfig-paths/register scripts/seed-demo.ts <password>
 ```
 
-Creates (idempotently) a verified demo user with a sample org, boards, cards with due dates, and chat messages — handy for reviewers.
+Provisions the [demo account](#try-it) — a pre-verified user owning a sample org with two boards, labels, cards with due dates (some overdue, some upcoming, so the calendar has content), and chat messages.
+
+Re-runnable by design: the user is upserted, while the `demo-workspace` org is dropped and rebuilt, so the sample data returns to a known-good state no matter how thoroughly a visitor rearranged it.
 
 ### Scripts
 
