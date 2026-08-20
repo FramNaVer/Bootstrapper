@@ -8,6 +8,8 @@ import { CardRepository } from "../../../domain/repositories/card.repository"
 import { ActivityLogRepository } from "../../../domain/repositories/activity-log.repository"
 import { BoardEntity } from "../../../domain/entities/board.entity"
 import { ListEntity } from "../../../domain/entities/list.entity"
+import { TransactionContext, UnitOfWork } from "@shared/database/unit-of-work"
+import { OutboxRepository } from "@shared/outbox/outbox.repository"
 
 const POSITION_GAP = 1000
 
@@ -67,6 +69,21 @@ const mockActivityRepo: ActivityLogRepository = {
   listByBoard: vi.fn(),
 }
 
+const FAKE_TX: TransactionContext = { tx: "fake" }
+
+const mockUow: UnitOfWork = {
+  run: vi.fn(async (fn: (tx: TransactionContext) => Promise<unknown>) =>
+    fn(FAKE_TX)
+  ) as UnitOfWork["run"],
+}
+
+const mockOutboxRepo: OutboxRepository = {
+  create: vi.fn(),
+  claimBatch: vi.fn(),
+  markProcessed: vi.fn(),
+  markFailed: vi.fn(),
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   // default: board ไม่มีคอลัมน์อื่น → เช็ค rebalance หลัง update position เป็น no-op
@@ -83,13 +100,15 @@ describe("CreateListUseCase", () => {
     const useCase = new CreateListUseCase(
       mockBoardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute("org-1", "board-1", "user-1", { name: "To Do" })
 
     expect(mockListRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: POSITION_GAP })
+      expect.objectContaining({ position: POSITION_GAP }),
+      FAKE_TX
     )
   })
 
@@ -100,13 +119,15 @@ describe("CreateListUseCase", () => {
     const useCase = new CreateListUseCase(
       mockBoardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute("org-1", "board-1", "user-1", { name: "Done" })
 
     expect(mockListRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: 3000 })
+      expect.objectContaining({ position: 3000 }),
+      FAKE_TX
     )
   })
 
@@ -118,7 +139,8 @@ describe("CreateListUseCase", () => {
     const useCase = new CreateListUseCase(
       mockBoardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await expect(
@@ -136,7 +158,11 @@ describe("UpdateListUseCase", () => {
       ...mockList,
       position: 1500,
     })
-    const useCase = new UpdateListUseCase(mockListRepo, mockActivityRepo)
+    const useCase = new UpdateListUseCase(
+      mockListRepo, 
+      mockUow, 
+      mockOutboxRepo
+    )
 
     await useCase.execute("org-1", "board-1", "list-1", "user-1", {
       position: 1500,
@@ -144,7 +170,7 @@ describe("UpdateListUseCase", () => {
 
     expect(mockListRepo.update).toHaveBeenCalledWith("list-1", {
       position: 1500,
-    })
+    }, FAKE_TX)
   })
 
   it("should throw NotFound when list is in a different board", async () => {
@@ -152,7 +178,7 @@ describe("UpdateListUseCase", () => {
       ...mockList,
       boardId: "board-999",
     })
-    const useCase = new UpdateListUseCase(mockListRepo, mockActivityRepo)
+    const useCase = new UpdateListUseCase(mockListRepo, mockUow, mockOutboxRepo)
 
     await expect(
       useCase.execute("org-1", "board-1", "list-1", "user-1", { name: "X" })
@@ -165,7 +191,7 @@ describe("UpdateListUseCase", () => {
       ...mockList,
       organizationId: "org-2",
     })
-    const useCase = new UpdateListUseCase(mockListRepo, mockActivityRepo)
+    const useCase = new UpdateListUseCase(mockListRepo, mockUow, mockOutboxRepo)
 
     await expect(
       useCase.execute("org-1", "board-1", "list-1", "user-1", { name: "X" })
@@ -180,7 +206,7 @@ describe("UpdateListUseCase", () => {
       { ...mockList, id: "list-a", position: 1000 },
       { ...mockList, id: "list-b", position: 1000 + 1e-9 },
     ])
-    const useCase = new UpdateListUseCase(mockListRepo, mockActivityRepo)
+    const useCase = new UpdateListUseCase(mockListRepo, mockUow, mockOutboxRepo)
 
     await useCase.execute("org-1", "board-1", "list-1", "user-1", {
       position: 1000 + 1e-9,
@@ -195,7 +221,7 @@ describe("UpdateListUseCase", () => {
   it("should not check rebalance when only renaming", async () => {
     vi.mocked(mockListRepo.findById).mockResolvedValue(mockList)
     vi.mocked(mockListRepo.update).mockResolvedValue(mockList)
-    const useCase = new UpdateListUseCase(mockListRepo, mockActivityRepo)
+    const useCase = new UpdateListUseCase(mockListRepo, mockUow, mockOutboxRepo)
 
     await useCase.execute("org-1", "board-1", "list-1", "user-1", {
       name: "Renamed",

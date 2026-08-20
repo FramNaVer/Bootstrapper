@@ -18,4 +18,7 @@ export interface MembershipMember {
   displayName: string | null
   role: MembershipRole
   joinedAt: Date
+  // เวลา active ล่าสุดของ user — client เอาไปคำนวณ "ออนไลน์"/"เห็นล่าสุดเมื่อ"
+  // null = ยังไม่เคยเชื่อม socket เลย
+  lastSeenAt: Date | null
 }

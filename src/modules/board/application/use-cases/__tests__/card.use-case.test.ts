@@ -4,12 +4,15 @@ import { MoveCardUseCase } from "../move-card.use-case"
 import { DeleteCardUseCase } from "../delete-card.use-case"
 import { CardRepository } from "../../../domain/repositories/card.repository"
 import { ListRepository } from "../../../domain/repositories/list.repository"
-import { ActivityLogRepository } from "../../../domain/repositories/activity-log.repository"
 import { CardEntity } from "../../../domain/entities/card.entity"
 import { ListEntity } from "../../../domain/entities/list.entity"
 import { UnitOfWork, TransactionContext } from "@shared/database/unit-of-work"
 import { OutboxRepository } from "@shared/outbox/outbox.repository"
 import { CARD_MOVED_EVENT } from "../../outbox-handlers/card-moved.handler"
+import { CARD_CREATED_EVENT } from "../../outbox-handlers/card-created.handler"
+import { CARD_DELETED_EVENT } from "../../outbox-handlers/card-deleted.handler"
+import { UpdateCardUseCase } from "../update-card.use-case"
+import { CARD_UPDATED_EVENT } from "../../outbox-handlers/card-updated.handler"
 
 const POSITION_GAP = 1000
 
@@ -60,10 +63,6 @@ const mockListRepo: ListRepository = {
   softDelete: vi.fn(),
 }
 
-const mockActivityRepo: ActivityLogRepository = {
-  create: vi.fn(),
-  listByBoard: vi.fn(),
-}
 
 // token ปลอมแทน transaction — ใช้ยืนยันว่า mutation กับ outbox event
 // ถูกเรียกด้วย "transaction เดียวกัน" (หัวใจของ outbox pattern)
@@ -107,14 +106,16 @@ describe("CreateCardUseCase", () => {
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute(baseParams)
 
     expect(mockCardRepo.getMaxPosition).toHaveBeenCalledWith("list-1")
     expect(mockCardRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: 3000, listId: "list-1" })
+      expect.objectContaining({ position: 3000, listId: "list-1" }),
+      FAKE_TX
     )
   })
 
@@ -125,35 +126,42 @@ describe("CreateCardUseCase", () => {
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute(baseParams)
 
     expect(mockCardRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ position: POSITION_GAP })
+      expect.objectContaining({ position: POSITION_GAP }),
+      FAKE_TX
     )
   })
 
-  it("should log a CARD_CREATED activity", async () => {
+  it("should write a card-created outbox event in the same transaction", async () => {
     vi.mocked(mockListRepo.findById).mockResolvedValue(mockList)
     vi.mocked(mockCardRepo.getMaxPosition).mockResolvedValue(null)
     vi.mocked(mockCardRepo.create).mockResolvedValue(mockCard)
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await useCase.execute(baseParams)
 
-    expect(mockActivityRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(mockOutboxRepo.create).toHaveBeenCalledWith({
+      type: CARD_CREATED_EVENT,
+      payload: {
+        organizationId: "org-1",
         boardId: "board-1",
         actorId: "user-1",
-        action: "CARD_CREATED",
-      })
-    )
+        cardId: "card-1",
+        listId: "list-1",
+        title: "Task",
+      }
+    } , FAKE_TX)
   })
 
   it("should throw NotFound (and not create) when target list is cross-board", async () => {
@@ -164,12 +172,13 @@ describe("CreateCardUseCase", () => {
     const useCase = new CreateCardUseCase(
       mockCardRepo,
       mockListRepo,
-      mockActivityRepo
+      mockUow,
+      mockOutboxRepo
     )
 
     await expect(useCase.execute(baseParams)).rejects.toThrow("List not found")
     expect(mockCardRepo.create).not.toHaveBeenCalled()
-    expect(mockActivityRepo.create).not.toHaveBeenCalled()
+    expect(mockOutboxRepo.create).not.toHaveBeenCalled()
   })
 })
 
@@ -356,12 +365,47 @@ describe("MoveCardUseCase", () => {
   })
 })
 
+// UpdateCardUseCase — update content + CARD_UPDATED payload
+describe("UpdateCardUseCase", () => {
+  it("should write a card-updated outbox event in the same transaction", async () => {
+    vi.mocked(mockCardRepo.findById).mockResolvedValue(mockCard)
+    vi.mocked(mockCardRepo.update).mockResolvedValue({
+      ...mockCard,
+      title: "New Title",
+    })
+    const useCase = new UpdateCardUseCase(
+      mockCardRepo,
+      mockUow,
+      mockOutboxRepo
+    )
+
+    await useCase.execute({
+      organizationId: "org-1",
+      boardId: "board-1",
+      cardId: "card-1",
+      actorId: "user-1",
+      title: "New Title"
+    })
+
+    expect(mockOutboxRepo.create).toHaveBeenCalledWith({
+      type: CARD_UPDATED_EVENT,
+      payload: {
+        organizationId: "org-1",
+        boardId: "board-1",
+        actorId: "user-1",
+        cardId: "card-1",
+        title: "New Title",
+      }
+    }, FAKE_TX)
+  })
+}) 
+
 
 // DeleteCardUseCase — soft delete + activity
 describe("DeleteCardUseCase", () => {
   it("should soft-delete and log CARD_DELETED", async () => {
     vi.mocked(mockCardRepo.findById).mockResolvedValue(mockCard)
-    const useCase = new DeleteCardUseCase(mockCardRepo, mockActivityRepo)
+    const useCase = new DeleteCardUseCase(mockCardRepo, mockUow, mockOutboxRepo)
 
     await useCase.execute({
       organizationId: "org-1",
@@ -370,9 +414,17 @@ describe("DeleteCardUseCase", () => {
       actorId: "user-1",
     })
 
-    expect(mockCardRepo.softDelete).toHaveBeenCalledWith("card-1")
-    expect(mockActivityRepo.create).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "CARD_DELETED" })
-    )
+    expect(mockCardRepo.softDelete).toHaveBeenCalledWith("card-1", FAKE_TX)
+    expect(mockOutboxRepo.create).toHaveBeenCalledWith({
+      type: CARD_DELETED_EVENT,
+      payload: {
+        organizationId: "org-1",
+        boardId: "board-1",
+        actorId: "user-1",
+        cardId: "card-1",
+        title: "Task",
+        listId: "list-1",
+      }
+    }, FAKE_TX)
   })
 })

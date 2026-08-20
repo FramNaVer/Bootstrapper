@@ -91,21 +91,21 @@ const boardController = new BoardController(
 )
 
 const listController = new ListController(
-  new CreateListUseCase(boardRepo, listRepo, activityRepo),
+  new CreateListUseCase(boardRepo, listRepo, uow, outboxRepo),
   new ListListsUseCase(boardRepo, listRepo),
-  new UpdateListUseCase(listRepo, activityRepo),
+  new UpdateListUseCase(listRepo, uow, outboxRepo),
   new DeleteListUseCase(listRepo, cardRepo, activityRepo)
 )
 
 const cardController = new CardController(
-  new CreateCardUseCase(cardRepo, listRepo, activityRepo),
+  new CreateCardUseCase(cardRepo, listRepo, uow, outboxRepo),
   new ListCardsUseCase(boardRepo, cardRepo),
   new GetCardUseCase(cardRepo),
-  new UpdateCardUseCase(cardRepo, activityRepo),
+  new UpdateCardUseCase(cardRepo, uow, outboxRepo),
   // move-card เขียน mutation + outbox event ใน transaction เดียว
   // (activity log ถูกเขียนโดย outbox worker ทีหลัง — ดู card-moved.handler)
   new MoveCardUseCase(cardRepo, listRepo, uow, outboxRepo),
-  new DeleteCardUseCase(cardRepo, activityRepo)
+  new DeleteCardUseCase(cardRepo, uow, outboxRepo)
 )
 
 const activityController = new ActivityController(
@@ -113,7 +113,7 @@ const activityController = new ActivityController(
 )
 
 const commentController = new CommentController(
-  new AddCommentUseCase(cardRepo, commentRepo, activityRepo),
+  new AddCommentUseCase(cardRepo, commentRepo, uow, outboxRepo),
   new ListCommentsUseCase(cardRepo, commentRepo),
   new DeleteCommentUseCase(commentRepo)
 )

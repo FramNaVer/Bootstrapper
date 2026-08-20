@@ -13,7 +13,7 @@ export interface CardRepository {
     title: string
     description?: string | null
     position: number
-  }): Promise<CardEntity>
+  }, ctx?: TransactionContext): Promise<CardEntity>
 
   findById(id: string): Promise<CardEntity | null>
 
@@ -32,7 +32,8 @@ export interface CardRepository {
 
   update(
     id: string,
-    data: { title?: string; description?: string | null; dueDate?: Date | null }
+    data: { title?: string; description?: string | null; dueDate?: Date | null },
+    ctx?: TransactionContext
   ): Promise<CardEntity>
 
   // ย้ายการ์ด: เปลี่ยน list และ/หรือ ตำแหน่งในคราวเดียว
@@ -49,8 +50,8 @@ export interface CardRepository {
   // เขียน position ใหม่หลายใบใน transaction เดียว (rebalance ทั้ง list)
   updatePositions(items: { id: string; position: number }[]): Promise<void>
 
-  softDelete(id: string): Promise<void>
+  softDelete(id: string , ctx?: TransactionContext): Promise<void>
 
   // ลบการ์ดทั้งหมดใน list หนึ่ง (ใช้ตอนลบคอลัมน์ → การ์ดไม่ลอยค้าง)
-  softDeleteByList(listId: string): Promise<void>
+  softDeleteByList(listId: string, ctx?: TransactionContext): Promise<void>
 }

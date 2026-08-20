@@ -1,4 +1,6 @@
 import { CommentEntity, CommentWithAuthor } from "../entities/comment.entity"
+import { TransactionContext } from "@shared/database/unit-of-work"
+
 
 export interface CommentRepository {
   create(data: {
@@ -6,7 +8,7 @@ export interface CommentRepository {
     cardId: string
     authorId: string
     body: string
-  }): Promise<CommentEntity>
+  }, ctx?: TransactionContext): Promise<CommentEntity>
 
   findById(id: string): Promise<CommentEntity | null>
 

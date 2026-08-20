@@ -8,6 +8,8 @@ export interface UserRepository {
     linkOAuthProvider(userId: string, data: LinkOAuthData): Promise<void>;
     markEmailVerified(userId: string): Promise<void>;
     updatePassword(userId: string, passwordHash: string): Promise<void>;
+    // อัปเดตเวลา active ล่าสุด (เรียกจาก socket heartbeat) — ใช้แสดงสถานะออนไลน์
+    updateLastSeen(userId: string, at: Date): Promise<void>;
 }
 
 export interface CreateUserData {

@@ -29,7 +29,9 @@ export class PrismaMembershipRepository implements MembershipRepository {
   async listByOrg(organizationId: string): Promise<MembershipMember[]> {
     const rows = await this.prisma.membership.findMany({
       where: { organizationId },
-      include: { user: { select: { email: true, displayName: true } } },
+      include: {
+        user: { select: { email: true, displayName: true, lastSeenAt: true } },
+      },
       orderBy: { createdAt: "asc" },
     })
     return rows.map((r) => ({
@@ -38,6 +40,7 @@ export class PrismaMembershipRepository implements MembershipRepository {
       displayName: r.user.displayName,
       role: r.role,
       joinedAt: r.createdAt,
+      lastSeenAt: r.user.lastSeenAt,
     }))
   }
 

@@ -1,6 +1,8 @@
 import { PrismaClient } from "@generated/prisma"
 import { ListRepository } from "../../domain/repositories/list.repository"
 import { ListEntity } from "../../domain/entities/list.entity"
+import { prismaFrom } from "@shared/database/prisma-unit-of-work"
+import {TransactionContext} from "@shared/database/unit-of-work"
 
 export class PrismaListRepository implements ListRepository {
   constructor(private prisma: PrismaClient) {}
@@ -10,8 +12,8 @@ export class PrismaListRepository implements ListRepository {
     boardId: string
     name: string
     position: number
-  }): Promise<ListEntity> {
-    return this.prisma.list.create({ data })
+  }, ctx?: TransactionContext): Promise<ListEntity> {
+    return prismaFrom(this.prisma, ctx).list.create({ data })
   }
 
   async findById(id: string): Promise<ListEntity | null> {
@@ -38,9 +40,10 @@ export class PrismaListRepository implements ListRepository {
 
   async update(
     id: string,
-    data: { name?: string; position?: number }
+    data: { name?: string; position?: number },
+    ctx?: TransactionContext
   ): Promise<ListEntity> {
-    return this.prisma.list.update({ where: { id }, data })
+    return prismaFrom(this.prisma, ctx).list.update({ where: { id }, data })
   }
 
   async updatePositions(

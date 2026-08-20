@@ -1,11 +1,19 @@
 import { CardRepository } from "../../domain/repositories/card.repository"
-import { ActivityLogRepository } from "../../domain/repositories/activity-log.repository"
 import { getCardInBoard } from "../utils/card-access.util"
+import { UnitOfWork } from "@shared/database/unit-of-work"
+import { OutboxRepository } from "@shared/outbox/outbox.repository"
+import {
+  CARD_DELETED_EVENT,
+  CardDeletedPayload,
+} from "../outbox-handlers/card-deleted.handler"
+
+
 
 export class DeleteCardUseCase {
   constructor(
     private cardRepo: CardRepository,
-    private activityRepo: ActivityLogRepository
+    private uow: UnitOfWork,
+    private outboxRepo: OutboxRepository,
   ) {}
 
   async execute(params: {
@@ -16,20 +24,23 @@ export class DeleteCardUseCase {
   }) {
     const { organizationId, boardId, cardId, actorId } = params
 
-    const card = await getCardInBoard(
-      this.cardRepo,
-      cardId,
-      boardId,
-      organizationId
-    )
-    await this.cardRepo.softDelete(cardId)
+    const card = await getCardInBoard(this.cardRepo, cardId, boardId, organizationId)
 
-    await this.activityRepo.create({
+    const payload: CardDeletedPayload = {
       organizationId,
       boardId,
       actorId,
-      action: "CARD_DELETED",
-      payload: { cardId, title: card.title },
+      cardId,
+      title: card.title,
+      listId: card.listId,
+    }
+
+    await this.uow.run(async (tx) => {
+      await this.cardRepo.softDelete(cardId, tx)
+      await this.outboxRepo.create({
+        type: CARD_DELETED_EVENT,
+        payload,
+      }, tx)
     })
   }
 }

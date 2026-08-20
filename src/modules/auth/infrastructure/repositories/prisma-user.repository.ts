@@ -69,6 +69,14 @@ export class PrismaUserRepository implements UserRepository {
         });
     }
 
+    // อัปเดตเวลา active ล่าสุด — เรียกถี่ (heartbeat) แต่ throttle ที่ชั้น socket แล้ว
+    async updateLastSeen(userId: string, at: Date): Promise<void> {
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { lastSeenAt: at },
+        });
+    }
+
     // Method นี้ใช้สำหรับเชื่อมบัญชี OAuth กับ user ที่มีอยู่แล้ว
     async linkOAuthProvider(userId: string, data: LinkOAuthData) {
         await this.prisma.userOAuthProvider.upsert({

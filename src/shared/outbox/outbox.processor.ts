@@ -29,7 +29,7 @@ export class OutboxProcessor {
       const handler = this.handlers[event.type]
       try {
         if (!handler) {
-          // type ที่ไม่มี handler = producer กับ worker ตกลงกันไม่ตรง (บั๊กจริง)
+          // type ที่ไม่มี handler = producer กับ worker ตกลงกันไม่ตรง (bug)
           throw new Error(`No outbox handler registered for type: ${event.type}`)
         }
         await this.uow.run(async (tx) => {
